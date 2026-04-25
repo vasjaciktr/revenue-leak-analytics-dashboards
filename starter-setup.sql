@@ -377,12 +377,39 @@ transitions_raw AS (
   UNION ALL
 
   SELECT
-    'begin_checkout',
-    'add_payment_info',
-    COUNTIF(begin_checkout = 1),
-    COUNTIF(begin_checkout = 1 AND add_payment_info = 1),
-    SUM(IF(begin_checkout = 1 AND add_payment_info = 0 AND purchase = 0, IFNULL(begin_checkout_value, add_to_cart_value), 0))
-  FROM base
+  'begin_checkout',
+  'add_shipping_info',
+  COUNTIF(begin_checkout = 1),
+  COUNTIF(begin_checkout = 1 AND add_shipping_info = 1),
+  SUM(
+    IF(
+      begin_checkout = 1
+      AND add_shipping_info = 0
+      AND purchase = 0,
+      IFNULL(begin_checkout_value, add_to_cart_value),
+      0
+    )
+  )
+FROM base
+
+UNION ALL
+
+-- add_shipping_info → add_payment_info
+SELECT
+  'add_shipping_info',
+  'add_payment_info',
+  COUNTIF(add_shipping_info = 1),
+  COUNTIF(add_shipping_info = 1 AND add_payment_info = 1),
+  SUM(
+    IF(
+      add_shipping_info = 1
+      AND add_payment_info = 0
+      AND purchase = 0,
+      IFNULL(add_shipping_info_value, begin_checkout_value),
+      0
+    )
+  )
+FROM base
 
   UNION ALL
 
@@ -652,11 +679,17 @@ funnel_signals AS (
           CAST(ROUND(lost_revenue, 2) AS STRING)
         )
 
-      WHEN from_step = 'begin_checkout' AND to_step = 'add_payment_info'
-        THEN CONCAT(
-          'Users start checkout but do not reach the payment step. Estimated lost revenue: ',
-          CAST(ROUND(lost_revenue, 2) AS STRING)
-        )
+      WHEN from_step = 'begin_checkout' AND to_step = 'add_shipping_info'
+  THEN CONCAT(
+    'Users start checkout but do not enter shipping details. Lost revenue: ',
+    CAST(ROUND(lost_revenue, 2) AS STRING)
+  )
+
+WHEN from_step = 'add_shipping_info' AND to_step = 'add_payment_info'
+  THEN CONCAT(
+    'Users enter shipping details but do not proceed to payment. Lost revenue: ',
+    CAST(ROUND(lost_revenue, 2) AS STRING)
+  )
 
       WHEN from_step = 'add_payment_info' AND to_step = 'purchase'
         THEN CONCAT(
