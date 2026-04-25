@@ -19,7 +19,7 @@ A data analytics starter pack that allows data-rich but insight-poor companies q
 - All inlusive
 
 # Core
-
+**It shows where you're losing revenue**
 setup.sql will create the following tables:
 
 ## landing_pages_performance
