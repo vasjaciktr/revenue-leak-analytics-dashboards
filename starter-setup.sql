@@ -350,8 +350,18 @@ SELECT 'purchase_items_exist',
        COUNTIF(event_name = 'purchase' AND item_count > 0)
 FROM base;
 
+-- 6. Overview
 
--- 6. Signals
+CREATE OR REPLACE TABLE YOUR_PROJECT.leakonic.site_overview AS
+SELECT
+  SUM(sessions) AS sessions,
+  SUM(transactions) AS transactions,
+  SUM(revenue) AS revenue,
+  SAFE_DIVIDE(SUM(transactions), SUM(sessions)) AS conversion_rate
+FROM YOUR_PROJECT.leakonic.landing_pages_performance;
+
+
+-- 7. Signals
 
 CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.signals` AS
 WITH site_avg AS (
