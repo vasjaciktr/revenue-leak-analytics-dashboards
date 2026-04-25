@@ -351,7 +351,7 @@ CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.funnel_transitions` AS
 
 WITH base AS (
   SELECT *
-  FROM `YOUR_PROJECT.leakonic.funnel_sessions`
+  FROM `YOUR_PROJECT.leakonic.cart_sessions`
 ),
 
 transitions_raw AS (
@@ -360,7 +360,8 @@ transitions_raw AS (
     'add_to_cart' AS from_step,
     'view_cart' AS to_step,
     COUNTIF(add_to_cart = 1) AS from_sessions,
-    COUNTIF(add_to_cart = 1 AND view_cart = 1) AS to_sessions
+    COUNTIF(add_to_cart = 1 AND view_cart = 1) AS to_sessions,
+    SUM(IF(add_to_cart = 1 AND view_cart = 0 AND purchase = 0, cart_value, 0)) AS lost_revenue
   FROM base
 
   UNION ALL
@@ -369,7 +370,8 @@ transitions_raw AS (
     'view_cart',
     'begin_checkout',
     COUNTIF(view_cart = 1),
-    COUNTIF(view_cart = 1 AND begin_checkout = 1)
+    COUNTIF(view_cart = 1 AND begin_checkout = 1),
+    SUM(IF(view_cart = 1 AND begin_checkout = 0 AND purchase = 0, cart_value, 0))
   FROM base
 
   UNION ALL
@@ -378,7 +380,8 @@ transitions_raw AS (
     'begin_checkout',
     'add_payment_info',
     COUNTIF(begin_checkout = 1),
-    COUNTIF(begin_checkout = 1 AND add_payment_info = 1)
+    COUNTIF(begin_checkout = 1 AND add_payment_info = 1),
+    SUM(IF(begin_checkout = 1 AND add_payment_info = 0 AND purchase = 0, cart_value, 0))
   FROM base
 
   UNION ALL
@@ -387,17 +390,18 @@ transitions_raw AS (
     'add_payment_info',
     'purchase',
     COUNTIF(add_payment_info = 1),
-    COUNTIF(add_payment_info = 1 AND purchase = 1)
+    COUNTIF(add_payment_info = 1 AND purchase = 1),
+    SUM(IF(add_payment_info = 1 AND purchase = 0, cart_value, 0))
   FROM base
 )
 
 SELECT
   from_step,
   to_step,
-
   from_sessions,
   to_sessions,
-
+  from_sessions - to_sessions AS dropoff_sessions,
+  lost_revenue,
   SAFE_DIVIDE(to_sessions, from_sessions) AS conversion_rate,
   1 - SAFE_DIVIDE(to_sessions, from_sessions) AS dropoff_rate
 
@@ -418,7 +422,11 @@ WITH base AS (
 
     event_name,
 
-    ecommerce.value AS event_value
+    (
+      SELECT
+        SUM(IFNULL(item.price, 0) * IFNULL(item.quantity, 1))
+      FROM UNNEST(items) AS item
+    ) AS event_value
 
   FROM `YOUR_PROJECT.YOUR_GA4_DATASET.events_*`
   WHERE _TABLE_SUFFIX BETWEEN start_date AND end_date
@@ -434,7 +442,9 @@ aggregated AS (
     MAX(IF(event_name = 'add_payment_info', 1, 0)) AS add_payment_info,
     MAX(IF(event_name = 'purchase', 1, 0)) AS purchase,
 
-    MAX(IF(event_name = 'add_to_cart', event_value, NULL)) AS cart_value
+    SUM(
+      IF(event_name = 'add_to_cart', IFNULL(event_value, 0), 0)
+    ) AS cart_value
 
   FROM base
   WHERE session_id IS NOT NULL
