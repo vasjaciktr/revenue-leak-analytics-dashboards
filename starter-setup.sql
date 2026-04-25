@@ -447,6 +447,8 @@ WITH base AS (
       CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING)
     ) AS session_id,
 
+    event_timestamp,
+  
     event_name,
 
     (
