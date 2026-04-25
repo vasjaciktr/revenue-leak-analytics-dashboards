@@ -8,6 +8,8 @@ A data analytics starter pack that allows data-rich but insight-poor companies q
   * Performance by device
   * Leak signals (high_traffic_low_conversion, mobile_gap, no_revenue_pages)
 - Funnel Module
+  * Funnel performance
+  * Funnel by device
 ## Growth
 - Core
   * Landing page performance
