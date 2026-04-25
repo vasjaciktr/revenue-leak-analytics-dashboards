@@ -1,8 +1,9 @@
 # Leakonic
-A data analytics starter pack that allows data-rich but insight-poor companies quickly and easily get revenue leak issues combining data from GA4 and Google Search Console (optionally) in one place.
+A data analytics starter pack that allows data-rich but insight-poor companies quickly and easily get revenue leak issues and SEO insights combining data from GA4 and Google Search Console (optionally) in one place.
 
 ***Structure:***
 ## Starter
+Revenue leaks
 - Core
   * Landing page performance
   * Performance by device
@@ -11,18 +12,15 @@ A data analytics starter pack that allows data-rich but insight-poor companies q
   * Funnel performance
   * Funnel by device
 ## Growth
-- Core
-  * Landing page performance
-  * Performance by device
-  * Leak signals (high_traffic_low_conversion, mobile_gap, no_revenue_pages)
-- Funnel Module
+Revenue leaks + SEO performance
+- Starter
 - SEO Module
 ## Pro
-- All inlusive
+?
 
 # Core
 **It shows where you're losing revenue.**
-setup.sql will create the following tables:
+starter-setup.sql will create the following tables:
 
 ## landing_pages_performance
 It shows "where there is traffic but there's no conversion"
