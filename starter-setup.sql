@@ -361,7 +361,7 @@ transitions_raw AS (
     'view_cart' AS to_step,
     COUNTIF(add_to_cart = 1) AS from_sessions,
     COUNTIF(add_to_cart = 1 AND view_cart = 1) AS to_sessions,
-    SUM(IF(add_to_cart = 1 AND view_cart = 0 AND purchase = 0, cart_value, 0)) AS lost_revenue
+    SUM(IF(add_to_cart = 1 AND view_cart = 0 AND purchase = 0, add_to_cart_value, 0)) AS lost_revenue
   FROM base
 
   UNION ALL
@@ -371,7 +371,7 @@ transitions_raw AS (
     'begin_checkout',
     COUNTIF(view_cart = 1),
     COUNTIF(view_cart = 1 AND begin_checkout = 1),
-    SUM(IF(view_cart = 1 AND begin_checkout = 0 AND purchase = 0, cart_value, 0))
+    SUM(IF(view_cart = 1 AND begin_checkout = 0 AND purchase = 0, IFNULL(view_cart_value, add_to_cart_value), 0))
   FROM base
 
   UNION ALL
@@ -381,7 +381,7 @@ transitions_raw AS (
     'add_payment_info',
     COUNTIF(begin_checkout = 1),
     COUNTIF(begin_checkout = 1 AND add_payment_info = 1),
-    SUM(IF(begin_checkout = 1 AND add_payment_info = 0 AND purchase = 0, cart_value, 0))
+    SUM(IF(begin_checkout = 1 AND add_payment_info = 0 AND purchase = 0, IFNULL(begin_checkout_value, add_to_cart_value), 0))
   FROM base
 
   UNION ALL
@@ -391,7 +391,7 @@ transitions_raw AS (
     'purchase',
     COUNTIF(add_payment_info = 1),
     COUNTIF(add_payment_info = 1 AND purchase = 1),
-    SUM(IF(add_payment_info = 1 AND purchase = 0, cart_value, 0))
+    SUM(IF(add_payment_info = 1 AND purchase = 0, IFNULL(add_payment_info_value, begin_checkout_value), 0))
   FROM base
 )
 
