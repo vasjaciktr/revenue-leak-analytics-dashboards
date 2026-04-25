@@ -6,7 +6,7 @@ DECLARE end_date STRING DEFAULT FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE(), I
 
 -- 1. Landing page performance
 
-CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.leakonic_landing_pages_performance` AS
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.landing_pages_performance` AS
 WITH base AS (
   SELECT
     PARSE_DATE('%Y%m%d', event_date) AS date,
@@ -67,7 +67,7 @@ GROUP BY landing_page;
 
 -- 2. Device performance
 
-CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.leakonic_device_performance` AS
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.device_performance` AS
 WITH base AS (
   SELECT
     user_pseudo_id,
@@ -118,7 +118,7 @@ GROUP BY s.device_category;
 
 -- 3. Validation checks
 
-CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.leakonic_validation_checks` AS
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.validation_checks` AS
 WITH base AS (
   SELECT
     event_name,
@@ -159,11 +159,11 @@ FROM base;
 
 -- 4. Leak signals
 
-CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.leakonic_signals` AS
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.signals` AS
 WITH site_avg AS (
   SELECT
     AVG(conversion_rate) AS avg_page_cr
-  FROM `YOUR_PROJECT.leakonic.leakonic_landing_pages_performance`
+  FROM `YOUR_PROJECT.leakonic.landing_pages_performance`
   WHERE sessions >= 50
 ),
 
@@ -189,7 +189,7 @@ landing_signals AS (
       CAST(ROUND(conversion_rate * 100, 2) AS STRING),
       '%.'
     ) AS interpretation
-  FROM `YOUR_PROJECT.leakonic.leakonic_landing_pages_performance`, site_avg
+  FROM `YOUR_PROJECT.leakonic.landing_pages_performance`, site_avg
   WHERE sessions >= 300
     AND conversion_rate < avg_page_cr * 0.5
 ),
@@ -214,7 +214,7 @@ no_revenue_signals AS (
       CAST(sessions AS STRING),
       '.'
     ) AS interpretation
-  FROM `YOUR_PROJECT.leakonic.leakonic_landing_pages_performance`
+  FROM `YOUR_PROJECT.leakonic.landing_pages_performance`
   WHERE sessions >= 300
     AND IFNULL(revenue, 0) = 0
 ),
@@ -241,8 +241,8 @@ device_gap AS (
       CAST(ROUND(desktop.conversion_rate * 100, 2) AS STRING),
       '%.'
     ) AS interpretation
-  FROM `YOUR_PROJECT.leakonic.leakonic_device_performance` mobile
-  JOIN `YOUR_PROJECT.leakonic.leakonic_device_performance` desktop
+  FROM `YOUR_PROJECT.leakonic.device_performance` mobile
+  JOIN `YOUR_PROJECT.leakonic.device_performance` desktop
     ON mobile.device_category = 'mobile'
    AND desktop.device_category = 'desktop'
   WHERE mobile.sessions >= 300
