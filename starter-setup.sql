@@ -439,13 +439,35 @@ aggregated AS (
     MAX(IF(event_name = 'add_to_cart', 1, 0)) AS add_to_cart,
     MAX(IF(event_name = 'view_cart', 1, 0)) AS view_cart,
     MAX(IF(event_name = 'begin_checkout', 1, 0)) AS begin_checkout,
+    MAX(IF(event_name = 'add_shipping_info', 1, 0)) AS add_shipping_info,
     MAX(IF(event_name = 'add_payment_info', 1, 0)) AS add_payment_info,
     MAX(IF(event_name = 'purchase', 1, 0)) AS purchase,
 
     SUM(IF(event_name = 'add_to_cart', IFNULL(event_value, 0), 0)) AS add_to_cart_value,
-    MAX(IF(event_name = 'view_cart', IFNULL(event_value, 0), NULL)) AS view_cart_value,
-    MAX(IF(event_name = 'begin_checkout', IFNULL(event_value, 0), NULL)) AS begin_checkout_value,
-    MAX(IF(event_name = 'add_payment_info', IFNULL(event_value, 0), NULL)) AS add_payment_info_value
+    ARRAY_AGG(
+  IF(event_name = 'view_cart', event_value, NULL)
+  IGNORE NULLS
+  ORDER BY event_timestamp DESC
+  LIMIT 1
+)[SAFE_OFFSET(0)] AS view_cart_value,
+    ARRAY_AGG(
+  IF(event_name = 'begin_checkout', event_value, NULL)
+  IGNORE NULLS
+  ORDER BY event_timestamp DESC
+  LIMIT 1
+)[SAFE_OFFSET(0)] AS begin_checkout_value,
+    ARRAY_AGG(
+  IF(event_name = 'add_shipping_info', event_value, NULL)
+  IGNORE NULLS
+  ORDER BY event_timestamp DESC
+  LIMIT 1
+)[SAFE_OFFSET(0)] AS add_shipping_info_value,
+    ARRAY_AGG(
+  IF(event_name = 'add_payment_info', event_value, NULL)
+  IGNORE NULLS
+  ORDER BY event_timestamp DESC
+  LIMIT 1
+)[SAFE_OFFSET(0)] AS add_payment_info_value
 
   FROM base
   WHERE session_id IS NOT NULL
