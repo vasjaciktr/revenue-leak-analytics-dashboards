@@ -1,8 +1,7 @@
 -- Leakonic Core v1 starter-setup.sql
 
 -- IMPORTANT: Replace YOUR_PROJECT with Your Project Name
--- IMPORTANT: Replace location="EU" with Your GA4 Dataset Region (EU/US)
--- IMPORTANT: Replace YOUR_GA4_DATASET with Your GA4 Dataset name (EU/US)
+-- IMPORTANT: Replace YOUR_GA4_DATASET with Your GA4 Dataset name
 
 
 DECLARE start_date STRING DEFAULT FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY));
@@ -11,8 +10,7 @@ DECLARE end_date STRING DEFAULT FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE(), I
 
 -- 0. Create dataset (schema)
 
-CREATE SCHEMA IF NOT EXISTS `YOUR_PROJECT.leakonic`
-OPTIONS(location="EU");
+CREATE SCHEMA IF NOT EXISTS `YOUR_PROJECT.leakonic`;
 
 
 -- 1. Landing pages performance
