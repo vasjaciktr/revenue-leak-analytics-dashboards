@@ -107,13 +107,17 @@ LEFT JOIN purchases p ON s.session_id = p.session_id
 GROUP BY s.device_category;
 
 
--- 3. Funnel performance
+-- 3. Adaptive funnel performance
 
 CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.funnel_performance` AS
 WITH base AS (
   SELECT
     user_pseudo_id,
-    CONCAT(user_pseudo_id, '-', CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING)) AS session_id,
+    CONCAT(
+      user_pseudo_id,
+      '-',
+      CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING)
+    ) AS session_id,
     event_name
   FROM `YOUR_PROJECT.YOUR_GA4_DATASET.events_*`
   WHERE _TABLE_SUFFIX BETWEEN start_date AND end_date
@@ -122,33 +126,91 @@ WITH base AS (
 steps AS (
   SELECT
     session_id,
+
+    MAX(IF(event_name = 'session_start', 1, 0)) AS session_start,
+    MAX(IF(event_name = 'view_item_list', 1, 0)) AS view_item_list,
     MAX(IF(event_name = 'view_item', 1, 0)) AS view_item,
     MAX(IF(event_name = 'add_to_cart', 1, 0)) AS add_to_cart,
+    MAX(IF(event_name = 'view_cart', 1, 0)) AS view_cart,
     MAX(IF(event_name = 'begin_checkout', 1, 0)) AS begin_checkout,
+    MAX(IF(event_name = 'add_shipping_info', 1, 0)) AS add_shipping_info,
+    MAX(IF(event_name = 'add_payment_info', 1, 0)) AS add_payment_info,
     MAX(IF(event_name = 'purchase', 1, 0)) AS purchase
+
   FROM base
   WHERE session_id IS NOT NULL
   GROUP BY session_id
+),
+
+counts AS (
+  SELECT
+    COUNT(*) AS total_sessions,
+
+    COUNTIF(session_start = 1) AS session_start_sessions,
+    COUNTIF(view_item_list = 1) AS view_item_list_sessions,
+    COUNTIF(view_item = 1) AS view_item_sessions,
+    COUNTIF(add_to_cart = 1) AS add_to_cart_sessions,
+    COUNTIF(view_cart = 1) AS view_cart_sessions,
+    COUNTIF(begin_checkout = 1) AS begin_checkout_sessions,
+    COUNTIF(add_shipping_info = 1) AS add_shipping_info_sessions,
+    COUNTIF(add_payment_info = 1) AS add_payment_info_sessions,
+    COUNTIF(purchase = 1) AS purchase_sessions
+  FROM steps
+),
+
+funnel_rows AS (
+  SELECT 1 AS step_number, 'session_start' AS step_name, TRUE AS is_required, session_start_sessions AS sessions FROM counts
+  UNION ALL
+  SELECT 2, 'view_item_list', FALSE, view_item_list_sessions FROM counts WHERE view_item_list_sessions > 0
+  UNION ALL
+  SELECT 3, 'view_item', FALSE, view_item_sessions FROM counts WHERE view_item_sessions > 0
+  UNION ALL
+  SELECT 4, 'add_to_cart', TRUE, add_to_cart_sessions FROM counts
+  UNION ALL
+  SELECT 5, 'view_cart', FALSE, view_cart_sessions FROM counts WHERE view_cart_sessions > 0
+  UNION ALL
+  SELECT 6, 'begin_checkout', TRUE, begin_checkout_sessions FROM counts
+  UNION ALL
+  SELECT 7, 'add_shipping_info', FALSE, add_shipping_info_sessions FROM counts WHERE add_shipping_info_sessions > 0
+  UNION ALL
+  SELECT 8, 'add_payment_info', FALSE, add_payment_info_sessions FROM counts WHERE add_payment_info_sessions > 0
+  UNION ALL
+  SELECT 9, 'purchase', TRUE, purchase_sessions FROM counts
 )
 
 SELECT
-  COUNTIF(view_item = 1) AS view_item_sessions,
-  COUNTIF(add_to_cart = 1) AS add_to_cart_sessions,
-  COUNTIF(begin_checkout = 1) AS begin_checkout_sessions,
-  COUNTIF(purchase = 1) AS purchase_sessions,
-  SAFE_DIVIDE(COUNTIF(add_to_cart = 1), COUNTIF(view_item = 1)) AS view_to_cart_rate,
-  SAFE_DIVIDE(COUNTIF(begin_checkout = 1), COUNTIF(add_to_cart = 1)) AS cart_to_checkout_rate,
-  SAFE_DIVIDE(COUNTIF(purchase = 1), COUNTIF(begin_checkout = 1)) AS checkout_to_purchase_rate
-FROM steps;
+  step_number,
+  step_name,
+  is_required,
+  sessions,
+
+  LAG(sessions) OVER (ORDER BY step_number) AS previous_visible_step_sessions,
+
+  SAFE_DIVIDE(
+    sessions,
+    LAG(sessions) OVER (ORDER BY step_number)
+  ) AS step_conversion_rate,
+
+  1 - SAFE_DIVIDE(
+    sessions,
+    LAG(sessions) OVER (ORDER BY step_number)
+  ) AS step_dropoff_rate
+
+FROM funnel_rows
+ORDER BY step_number;
 
 
--- 4. Funnel by device
+-- 4. Adaptive funnel by device
 
 CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.funnel_by_device` AS
 WITH base AS (
   SELECT
     user_pseudo_id,
-    CONCAT(user_pseudo_id, '-', CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING)) AS session_id,
+    CONCAT(
+      user_pseudo_id,
+      '-',
+      CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING)
+    ) AS session_id,
     event_name,
     device.category AS device_category
   FROM `YOUR_PROJECT.YOUR_GA4_DATASET.events_*`
@@ -159,26 +221,91 @@ steps AS (
   SELECT
     session_id,
     ANY_VALUE(device_category) AS device_category,
+
+    MAX(IF(event_name = 'session_start', 1, 0)) AS session_start,
+    MAX(IF(event_name = 'view_item_list', 1, 0)) AS view_item_list,
     MAX(IF(event_name = 'view_item', 1, 0)) AS view_item,
     MAX(IF(event_name = 'add_to_cart', 1, 0)) AS add_to_cart,
+    MAX(IF(event_name = 'view_cart', 1, 0)) AS view_cart,
     MAX(IF(event_name = 'begin_checkout', 1, 0)) AS begin_checkout,
+    MAX(IF(event_name = 'add_shipping_info', 1, 0)) AS add_shipping_info,
+    MAX(IF(event_name = 'add_payment_info', 1, 0)) AS add_payment_info,
     MAX(IF(event_name = 'purchase', 1, 0)) AS purchase
+
   FROM base
   WHERE session_id IS NOT NULL
   GROUP BY session_id
+),
+
+counts AS (
+  SELECT
+    device_category,
+
+    COUNT(*) AS total_sessions,
+
+    COUNTIF(session_start = 1) AS session_start_sessions,
+    COUNTIF(view_item_list = 1) AS view_item_list_sessions,
+    COUNTIF(view_item = 1) AS view_item_sessions,
+    COUNTIF(add_to_cart = 1) AS add_to_cart_sessions,
+    COUNTIF(view_cart = 1) AS view_cart_sessions,
+    COUNTIF(begin_checkout = 1) AS begin_checkout_sessions,
+    COUNTIF(add_shipping_info = 1) AS add_shipping_info_sessions,
+    COUNTIF(add_payment_info = 1) AS add_payment_info_sessions,
+    COUNTIF(purchase = 1) AS purchase_sessions
+  FROM steps
+  GROUP BY device_category
+),
+
+funnel_rows AS (
+  SELECT device_category, 1 AS step_number, 'session_start' AS step_name, TRUE AS is_required, session_start_sessions AS sessions FROM counts
+  UNION ALL
+  SELECT device_category, 2, 'view_item_list', FALSE, view_item_list_sessions FROM counts WHERE view_item_list_sessions > 0
+  UNION ALL
+  SELECT device_category, 3, 'view_item', FALSE, view_item_sessions FROM counts WHERE view_item_sessions > 0
+  UNION ALL
+  SELECT device_category, 4, 'add_to_cart', TRUE, add_to_cart_sessions FROM counts
+  UNION ALL
+  SELECT device_category, 5, 'view_cart', FALSE, view_cart_sessions FROM counts WHERE view_cart_sessions > 0
+  UNION ALL
+  SELECT device_category, 6, 'begin_checkout', TRUE, begin_checkout_sessions FROM counts
+  UNION ALL
+  SELECT device_category, 7, 'add_shipping_info', FALSE, add_shipping_info_sessions FROM counts WHERE add_shipping_info_sessions > 0
+  UNION ALL
+  SELECT device_category, 8, 'add_payment_info', FALSE, add_payment_info_sessions FROM counts WHERE add_payment_info_sessions > 0
+  UNION ALL
+  SELECT device_category, 9, 'purchase', TRUE, purchase_sessions FROM counts
 )
 
 SELECT
   device_category,
-  COUNTIF(view_item = 1) AS view_item_sessions,
-  COUNTIF(add_to_cart = 1) AS add_to_cart_sessions,
-  COUNTIF(begin_checkout = 1) AS begin_checkout_sessions,
-  COUNTIF(purchase = 1) AS purchase_sessions,
-  SAFE_DIVIDE(COUNTIF(add_to_cart = 1), COUNTIF(view_item = 1)) AS view_to_cart_rate,
-  SAFE_DIVIDE(COUNTIF(begin_checkout = 1), COUNTIF(add_to_cart = 1)) AS cart_to_checkout_rate,
-  SAFE_DIVIDE(COUNTIF(purchase = 1), COUNTIF(begin_checkout = 1)) AS checkout_to_purchase_rate
-FROM steps
-GROUP BY device_category;
+  step_number,
+  step_name,
+  is_required,
+  sessions,
+
+  LAG(sessions) OVER (
+    PARTITION BY device_category
+    ORDER BY step_number
+  ) AS previous_visible_step_sessions,
+
+  SAFE_DIVIDE(
+    sessions,
+    LAG(sessions) OVER (
+      PARTITION BY device_category
+      ORDER BY step_number
+    )
+  ) AS step_conversion_rate,
+
+  1 - SAFE_DIVIDE(
+    sessions,
+    LAG(sessions) OVER (
+      PARTITION BY device_category
+      ORDER BY step_number
+    )
+  ) AS step_dropoff_rate
+
+FROM funnel_rows
+ORDER BY device_category, step_number;
 
 
 -- 5. Validation checks
@@ -297,62 +424,46 @@ device_gap AS (
 
 funnel_signals AS (
   SELECT
-    'funnel',
-    'funnel',
-    'low_add_to_cart_rate',
+    CONCAT(previous_step_name, '_to_', step_name) AS entity,
+    'funnel' AS entity_type,
+    CONCAT(previous_step_name, '_to_', step_name, '_dropoff') AS signal_type,
+
     CASE
-      WHEN view_to_cart_rate < 0.03 THEN 'high'
-      WHEN view_to_cart_rate < 0.06 THEN 'medium'
+      WHEN step_dropoff_rate >= 0.7 THEN 'high'
+      WHEN step_dropoff_rate >= 0.5 THEN 'medium'
       ELSE 'low'
-    END,
-    view_item_sessions,
-    NULL,
-    NULL,
-    view_to_cart_rate,
-    'Users view products but rarely add them to cart.'
-  FROM `YOUR_PROJECT.leakonic.funnel_performance`
-  WHERE view_item_sessions >= 300
-    AND view_to_cart_rate < 0.06
+    END AS severity,
 
-  UNION ALL
+    sessions,
+    NULL AS transactions,
+    NULL AS revenue,
+    step_conversion_rate AS metric_value,
 
-  SELECT
-    'funnel',
-    'funnel',
-    'cart_to_checkout_dropoff',
-    CASE
-      WHEN cart_to_checkout_rate < 0.3 THEN 'high'
-      WHEN cart_to_checkout_rate < 0.5 THEN 'medium'
-      ELSE 'low'
-    END,
-    add_to_cart_sessions,
-    NULL,
-    NULL,
-    cart_to_checkout_rate,
-    'Users add items to cart but do not start checkout.'
-  FROM `YOUR_PROJECT.leakonic.funnel_performance`
-  WHERE add_to_cart_sessions >= 100
-    AND cart_to_checkout_rate < 0.5
+    CONCAT(
+      'Users drop off between ',
+      previous_step_name,
+      ' and ',
+      step_name,
+      '. Step conversion rate: ',
+      CAST(ROUND(step_conversion_rate * 100, 2) AS STRING),
+      '%.'
+    ) AS interpretation
 
-  UNION ALL
+  FROM (
+    SELECT
+      step_number,
+      step_name,
+      LAG(step_name) OVER (ORDER BY step_number) AS previous_step_name,
+      sessions,
+      previous_visible_step_sessions,
+      step_conversion_rate,
+      step_dropoff_rate
+    FROM `YOUR_PROJECT.leakonic.funnel_performance`
+  )
 
-  SELECT
-    'funnel',
-    'funnel',
-    'checkout_dropoff',
-    CASE
-      WHEN checkout_to_purchase_rate < 0.3 THEN 'high'
-      WHEN checkout_to_purchase_rate < 0.5 THEN 'medium'
-      ELSE 'low'
-    END,
-    begin_checkout_sessions,
-    NULL,
-    NULL,
-    checkout_to_purchase_rate,
-    'Users start checkout but do not complete purchase.'
-  FROM `YOUR_PROJECT.leakonic.funnel_performance`
-  WHERE begin_checkout_sessions >= 100
-    AND checkout_to_purchase_rate < 0.5
+  WHERE previous_step_name IS NOT NULL
+    AND previous_visible_step_sessions >= 50
+    AND step_dropoff_rate >= 0.5
 )
 
 SELECT * FROM landing_signals
