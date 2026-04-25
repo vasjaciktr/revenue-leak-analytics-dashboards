@@ -602,66 +602,61 @@ device_gap AS (
 
 funnel_signals AS (
   SELECT
-    CONCAT(previous_step_name, '_to_', step_name) AS entity,
+    CONCAT(from_step, '_to_', to_step) AS entity,
     'funnel' AS entity_type,
-    CONCAT(previous_step_name, '_to_', step_name, '_dropoff') AS signal_type,
+    CONCAT(from_step, '_to_', to_step, '_dropoff') AS signal_type,
 
     CASE
-      WHEN step_dropoff_rate >= 0.7 THEN 'high'
-      WHEN step_dropoff_rate >= 0.5 THEN 'medium'
-      WHEN step_dropoff_rate >= 0.3 THEN 'low'
+      WHEN dropoff_rate >= 0.7 THEN 'high'
+      WHEN dropoff_rate >= 0.5 THEN 'medium'
+      WHEN dropoff_rate >= 0.3 THEN 'low'
     END AS severity,
 
-    sessions,
+    from_sessions AS sessions,
     NULL AS transactions,
-    NULL AS revenue,
-    step_conversion_rate AS metric_value,
+    lost_revenue AS revenue,
+    dropoff_rate AS metric_value,
 
-    CONCAT(
-      'Users drop off between ',
-      previous_step_name,
-      ' and ',
-      step_name,
-      '. Step conversion rate: ',
-      CAST(ROUND(step_conversion_rate * 100, 2) AS STRING),
-      '%.'
-    ) AS interpretation
+    CASE
+      WHEN from_step = 'add_to_cart' AND to_step = 'view_cart'
+        THEN CONCAT(
+          'Users add products to cart but do not open the cart. Estimated lost revenue: ',
+          CAST(ROUND(lost_revenue, 2) AS STRING)
+        )
 
-  FROM (
-    SELECT
-      step_number,
-      step_name,
-      LAG(step_name) OVER (ORDER BY step_number) AS previous_step_name,
-      sessions,
-      previous_visible_step_sessions,
-      step_conversion_rate,
-      step_dropoff_rate
-    FROM `YOUR_PROJECT.leakonic.funnel_performance`
-  )
+      WHEN from_step = 'view_cart' AND to_step = 'begin_checkout'
+        THEN CONCAT(
+          'Users open the cart but do not proceed to checkout. Estimated lost revenue: ',
+          CAST(ROUND(lost_revenue, 2) AS STRING)
+        )
 
-  WHERE previous_step_name IS NOT NULL
-    AND previous_visible_step_sessions >= 50
-    AND step_dropoff_rate >= 0.3
+      WHEN from_step = 'begin_checkout' AND to_step = 'add_payment_info'
+        THEN CONCAT(
+          'Users start checkout but do not reach the payment step. Estimated lost revenue: ',
+          CAST(ROUND(lost_revenue, 2) AS STRING)
+        )
+
+      WHEN from_step = 'add_payment_info' AND to_step = 'purchase'
+        THEN CONCAT(
+          'Users reach the payment step but do not complete purchase. Estimated lost revenue: ',
+          CAST(ROUND(lost_revenue, 2) AS STRING)
+        )
+
+      ELSE CONCAT(
+        'Users drop off between ',
+        from_step,
+        ' and ',
+        to_step,
+        '. Estimated lost revenue: ',
+        CAST(ROUND(lost_revenue, 2) AS STRING)
+      )
+    END AS interpretation
+
+  FROM `YOUR_PROJECT.leakonic.funnel_transitions`
+
+  WHERE from_sessions >= 50
+    AND dropoff_rate >= 0.3
 )
-
-SELECT
-  entity,
-  entity_type,
-  signal_type,
-  severity,
-
-  CASE
-    WHEN severity = 'high' THEN 3
-    WHEN severity = 'medium' THEN 2
-    WHEN severity = 'low' THEN 1
-    ELSE 0
-  END AS severity_score,
-
-  sessions,
-  transactions,
-  revenue,
-  metric_value,
-  interpretation
 
 FROM (
   SELECT * FROM landing_signals
