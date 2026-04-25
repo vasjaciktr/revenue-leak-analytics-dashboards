@@ -20,7 +20,7 @@ A data analytics starter pack that allows data-rich but insight-poor companies q
 
 # Core
 **It shows where you're losing revenue.**
-Setup.sql will create the following tables:
+setup.sql will create the following tables:
 
 ## landing_pages_performance
 It shows "where there is traffic but there's no conversion"
@@ -36,5 +36,9 @@ first 3–5 signals:
 
 ## validation_checks (minimal)
 It checks whether data coming from GA4 is correct
+
+# Growth
+**It shows how to improve and optimize.**
+setup.sql will create the following tables:
 
 **Then a client runs a script, get the tables, and opens the dashboard**
