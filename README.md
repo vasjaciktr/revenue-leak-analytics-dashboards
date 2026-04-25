@@ -1,7 +1,6 @@
 # Leakonic
 A data analytics starter pack that allows data-rich but insight-poor companies quickly and easily get revenue leak issues and SEO insights combining data from GA4 and Google Search Console (optionally) in one place.
 
-***Structure:***
 ## Starter
 **Revenue leaks**
 - Core
