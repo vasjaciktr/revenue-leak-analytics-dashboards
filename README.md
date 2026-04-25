@@ -18,3 +18,5 @@ first 3–5 signals:
 
 ### validation_checks (minimal)
 It checks whether data coming from GA4 is correct
+
+Then a client runs a script, get the tables, and opens the dashboard
