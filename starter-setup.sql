@@ -352,13 +352,32 @@ FROM base;
 
 -- 6. Overview
 
-CREATE OR REPLACE TABLE YOUR_PROJECT.leakonic.site_overview AS
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.site_overview` AS
 SELECT
-  SUM(sessions) AS sessions,
-  SUM(transactions) AS transactions,
-  SUM(revenue) AS revenue,
-  SAFE_DIVIDE(SUM(transactions), SUM(sessions)) AS conversion_rate
-FROM YOUR_PROJECT.leakonic.landing_pages_performance;
+  PARSE_DATE('%Y%m%d', event_date) AS date,
+
+  COUNT(DISTINCT CONCAT(
+    user_pseudo_id,
+    '-',
+    CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING)
+  )) AS sessions,
+
+  COUNT(DISTINCT ecommerce.transaction_id) AS transactions,
+
+  SUM(IFNULL(ecommerce.purchase_revenue, 0)) AS revenue,
+
+  SAFE_DIVIDE(
+    COUNT(DISTINCT ecommerce.transaction_id),
+    COUNT(DISTINCT CONCAT(
+      user_pseudo_id,
+      '-',
+      CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING)
+    ))
+  ) AS conversion_rate
+
+FROM `YOUR_PROJECT.YOUR_GA4_DATASET.events_*`
+WHERE _TABLE_SUFFIX BETWEEN start_date AND end_date
+GROUP BY date;
 
 
 -- 7. Signals
@@ -478,7 +497,28 @@ funnel_signals AS (
     AND step_dropoff_rate >= 0.5
 )
 
-SELECT * FROM landing_signals
-UNION ALL SELECT * FROM no_revenue_signals
-UNION ALL SELECT * FROM device_gap
-UNION ALL SELECT * FROM funnel_signals;
+SELECT
+  entity,
+  entity_type,
+  signal_type,
+  severity,
+
+  CASE
+    WHEN severity = 'high' THEN 3
+    WHEN severity = 'medium' THEN 2
+    WHEN severity = 'low' THEN 1
+    ELSE 0
+  END AS severity_score,
+
+  sessions,
+  transactions,
+  revenue,
+  metric_value,
+  interpretation
+
+FROM (
+  SELECT * FROM landing_signals
+  UNION ALL SELECT * FROM no_revenue_signals
+  UNION ALL SELECT * FROM device_gap
+  UNION ALL SELECT * FROM funnel_signals
+);
