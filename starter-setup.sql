@@ -452,10 +452,11 @@ WITH base AS (
     event_name,
 
     (
-      SELECT
-        SUM(IFNULL(item.price, 0) * IFNULL(item.quantity, 1))
-      FROM UNNEST(items) AS item
-    ) AS event_value
+  SELECT
+    COALESCE(value.double_value, value.int_value)
+  FROM UNNEST(event_params)
+  WHERE key = 'value'
+) AS event_value
 
   FROM `YOUR_PROJECT.YOUR_GA4_DATASET.events_*`
   WHERE _TABLE_SUFFIX BETWEEN start_date AND end_date
