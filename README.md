@@ -3,7 +3,7 @@ A data analytics starter pack that allows data-rich but insight-poor companies q
 
 ***Structure:***
 ## Starter
-Revenue leaks
+**Revenue leaks**
 - Core
   * Landing page performance
   * Performance by device
@@ -12,11 +12,11 @@ Revenue leaks
   * Funnel performance
   * Funnel by device
 ## Growth
-Revenue leaks + SEO performance
+**Revenue leaks + SEO performance**
 - Starter
 - SEO Module
 ## Pro
-?
+**?**
 
 # Core
 **It shows where you're losing revenue.**
