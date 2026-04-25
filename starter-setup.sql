@@ -345,6 +345,58 @@ WHERE session_id IS NOT NULL
 GROUP BY session_id;
 
 
+-- X. Funnel transitions
+
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.funnel_transitions` AS
+
+WITH base AS (
+  SELECT *
+  FROM `YOUR_PROJECT.leakonic.funnel_sessions`
+)
+
+SELECT
+  'add_to_cart' AS from_step,
+  'view_cart' AS to_step,
+
+  COUNTIF(add_to_cart = 1) AS from_sessions,
+  COUNTIF(add_to_cart = 1 AND view_cart = 1) AS to_sessions
+
+FROM base
+
+UNION ALL
+
+SELECT
+  'view_cart',
+  'begin_checkout',
+
+  COUNTIF(view_cart = 1),
+  COUNTIF(view_cart = 1 AND begin_checkout = 1)
+
+FROM base
+
+UNION ALL
+
+SELECT
+  'begin_checkout',
+  'add_payment_info',
+
+  COUNTIF(begin_checkout = 1),
+  COUNTIF(begin_checkout = 1 AND add_payment_info = 1)
+
+FROM base
+
+UNION ALL
+
+SELECT
+  'add_payment_info',
+  'purchase',
+
+  COUNTIF(add_payment_info = 1),
+  COUNTIF(add_payment_info = 1 AND purchase = 1)
+
+FROM base;
+
+
 -- 5. Validation checks
 
 CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.validation_checks` AS
