@@ -462,7 +462,7 @@ funnel_signals AS (
     CASE
       WHEN step_dropoff_rate >= 0.7 THEN 'high'
       WHEN step_dropoff_rate >= 0.5 THEN 'medium'
-      ELSE 'low'
+      WHEN step_dropoff_rate >= 0.3 THEN 'low'
     END AS severity,
 
     sessions,
@@ -494,7 +494,7 @@ funnel_signals AS (
 
   WHERE previous_step_name IS NOT NULL
     AND previous_visible_step_sessions >= 50
-    AND step_dropoff_rate >= 0.5
+    AND step_dropoff_rate >= 0.3
 )
 
 SELECT
