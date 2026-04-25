@@ -1,4 +1,4 @@
--- Leakonic Core v1 leakonic-starter-setup.sql
+-- Leakonic Core v1 starter-setup.sql
 
 -- IMPORTANT: Replace YOUR_PROJECT with Your Project Name
 -- IMPORTANT: Replace location="EU" with yYour GA4 Dataset Region (EU/US)
