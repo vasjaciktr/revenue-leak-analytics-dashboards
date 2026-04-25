@@ -3,13 +3,16 @@
 -- IMPORTANT: Replace YOUR_PROJECT with Your Project Name
 -- IMPORTANT: Replace location="EU" with yYour GA4 Dataset Region (EU/US)
 
+
+DECLARE start_date STRING DEFAULT FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY));
+DECLARE end_date STRING DEFAULT FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY));
+
+
 -- 0. Create dataset (schema)
 
 CREATE SCHEMA IF NOT EXISTS `YOUR_PROJECT.leakonic`
 OPTIONS(location="EU");
 
-DECLARE start_date STRING DEFAULT FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY));
-DECLARE end_date STRING DEFAULT FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY));
 
 -- 1. Landing pages performance
 
