@@ -1,7 +1,8 @@
 -- Leakonic Core v1 starter-setup.sql
 
 -- IMPORTANT: Replace YOUR_PROJECT with Your Project Name
--- IMPORTANT: Replace location="EU" with yYour GA4 Dataset Region (EU/US)
+-- IMPORTANT: Replace location="EU" with Your GA4 Dataset Region (EU/US)
+-- IMPORTANT: Replace YOUR_GA4_DATASET with Your GA4 Dataset name (EU/US)
 
 
 DECLARE start_date STRING DEFAULT FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY));
