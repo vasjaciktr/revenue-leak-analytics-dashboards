@@ -352,49 +352,56 @@ CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.funnel_transitions` AS
 WITH base AS (
   SELECT *
   FROM `YOUR_PROJECT.leakonic.funnel_sessions`
+),
+
+transitions_raw AS (
+
+  SELECT
+    'add_to_cart' AS from_step,
+    'view_cart' AS to_step,
+    COUNTIF(add_to_cart = 1) AS from_sessions,
+    COUNTIF(add_to_cart = 1 AND view_cart = 1) AS to_sessions
+  FROM base
+
+  UNION ALL
+
+  SELECT
+    'view_cart',
+    'begin_checkout',
+    COUNTIF(view_cart = 1),
+    COUNTIF(view_cart = 1 AND begin_checkout = 1)
+  FROM base
+
+  UNION ALL
+
+  SELECT
+    'begin_checkout',
+    'add_payment_info',
+    COUNTIF(begin_checkout = 1),
+    COUNTIF(begin_checkout = 1 AND add_payment_info = 1)
+  FROM base
+
+  UNION ALL
+
+  SELECT
+    'add_payment_info',
+    'purchase',
+    COUNTIF(add_payment_info = 1),
+    COUNTIF(add_payment_info = 1 AND purchase = 1)
+  FROM base
 )
 
 SELECT
-  'add_to_cart' AS from_step,
-  'view_cart' AS to_step,
+  from_step,
+  to_step,
 
-  COUNTIF(add_to_cart = 1) AS from_sessions,
-  COUNTIF(add_to_cart = 1 AND view_cart = 1) AS to_sessions
+  from_sessions,
+  to_sessions,
 
-FROM base
+  SAFE_DIVIDE(to_sessions, from_sessions) AS conversion_rate,
+  1 - SAFE_DIVIDE(to_sessions, from_sessions) AS dropoff_rate
 
-UNION ALL
-
-SELECT
-  'view_cart',
-  'begin_checkout',
-
-  COUNTIF(view_cart = 1),
-  COUNTIF(view_cart = 1 AND begin_checkout = 1)
-
-FROM base
-
-UNION ALL
-
-SELECT
-  'begin_checkout',
-  'add_payment_info',
-
-  COUNTIF(begin_checkout = 1),
-  COUNTIF(begin_checkout = 1 AND add_payment_info = 1)
-
-FROM base
-
-UNION ALL
-
-SELECT
-  'add_payment_info',
-  'purchase',
-
-  COUNTIF(add_payment_info = 1),
-  COUNTIF(add_payment_info = 1 AND purchase = 1)
-
-FROM base;
+FROM transitions_raw;
 
 
 -- 5. Validation checks
