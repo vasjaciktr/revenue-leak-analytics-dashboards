@@ -109,7 +109,7 @@ LEFT JOIN purchases p ON s.session_id = p.session_id
 GROUP BY s.device_category;
 
 
--- 5. Cart sessions
+-- 3. Cart sessions
 
 CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.cart_sessions` AS
 
@@ -183,7 +183,7 @@ FROM aggregated
 WHERE add_to_cart = 1;
 
 
--- 6. Funnel transitions
+-- 4. Funnel transitions
 
 CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.funnel_transitions` AS
 
@@ -313,7 +313,7 @@ SELECT 'purchase_items_exist',
        COUNTIF(event_name = 'purchase' AND item_count > 0)
 FROM base;
 
--- 8. Overview
+-- 5. Overview
 
 CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.site_overview` AS
 SELECT
@@ -343,7 +343,7 @@ WHERE _TABLE_SUFFIX BETWEEN start_date AND end_date
 GROUP BY date;
 
 
--- 9. Signals
+-- 6. Signals
 
 CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.signals` AS
 WITH site_avg AS (
@@ -388,7 +388,7 @@ no_revenue_signals AS (
     transactions,
     revenue AS actual_revenue,
     NULL AS lost_revenue,
-    NULL AS conversion_rate,
+    0 AS conversion_rate,
     NULL AS dropoff_rate,
     CONCAT('Page receives traffic but generated no revenue. Sessions: ', CAST(sessions AS STRING))
   FROM `YOUR_PROJECT.leakonic.landing_pages_performance`
