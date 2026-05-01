@@ -345,6 +345,80 @@ WHERE session_id IS NOT NULL
 GROUP BY session_id;
 
 
+-- X. Cart sessions (with value)
+
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.cart_sessions` AS
+
+WITH base AS (
+  SELECT
+    CONCAT(
+      user_pseudo_id,
+      '-',
+      CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING)
+    ) AS session_id,
+
+    event_timestamp,
+  
+    event_name,
+
+    (
+  SELECT
+    COALESCE(value.double_value, value.int_value)
+  FROM UNNEST(event_params)
+  WHERE key = 'value'
+) AS event_value
+
+  FROM `YOUR_PROJECT.YOUR_GA4_DATASET.events_*`
+  WHERE _TABLE_SUFFIX BETWEEN start_date AND end_date
+),
+
+aggregated AS (
+  SELECT
+    session_id,
+
+    MAX(IF(event_name = 'add_to_cart', 1, 0)) AS add_to_cart,
+    MAX(IF(event_name = 'view_cart', 1, 0)) AS view_cart,
+    MAX(IF(event_name = 'begin_checkout', 1, 0)) AS begin_checkout,
+    MAX(IF(event_name = 'add_shipping_info', 1, 0)) AS add_shipping_info,
+    MAX(IF(event_name = 'add_payment_info', 1, 0)) AS add_payment_info,
+    MAX(IF(event_name = 'purchase', 1, 0)) AS purchase,
+
+    SUM(IF(event_name = 'add_to_cart', IFNULL(event_value, 0), 0)) AS add_to_cart_value,
+    ARRAY_AGG(
+  IF(event_name = 'view_cart', event_value, NULL)
+  IGNORE NULLS
+  ORDER BY event_timestamp DESC
+  LIMIT 1
+)[SAFE_OFFSET(0)] AS view_cart_value,
+    ARRAY_AGG(
+  IF(event_name = 'begin_checkout', event_value, NULL)
+  IGNORE NULLS
+  ORDER BY event_timestamp DESC
+  LIMIT 1
+)[SAFE_OFFSET(0)] AS begin_checkout_value,
+    ARRAY_AGG(
+  IF(event_name = 'add_shipping_info', event_value, NULL)
+  IGNORE NULLS
+  ORDER BY event_timestamp DESC
+  LIMIT 1
+)[SAFE_OFFSET(0)] AS add_shipping_info_value,
+    ARRAY_AGG(
+  IF(event_name = 'add_payment_info', event_value, NULL)
+  IGNORE NULLS
+  ORDER BY event_timestamp DESC
+  LIMIT 1
+)[SAFE_OFFSET(0)] AS add_payment_info_value
+
+  FROM base
+  WHERE session_id IS NOT NULL
+  GROUP BY session_id
+)
+
+SELECT *
+FROM aggregated
+WHERE add_to_cart = 1;
+
+
 -- X. Funnel transitions
 
 CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.funnel_transitions` AS
@@ -433,80 +507,6 @@ SELECT
   1 - SAFE_DIVIDE(to_sessions, from_sessions) AS dropoff_rate
 
 FROM transitions_raw;
-
-
--- X. Cart sessions (with value)
-
-CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.cart_sessions` AS
-
-WITH base AS (
-  SELECT
-    CONCAT(
-      user_pseudo_id,
-      '-',
-      CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING)
-    ) AS session_id,
-
-    event_timestamp,
-  
-    event_name,
-
-    (
-  SELECT
-    COALESCE(value.double_value, value.int_value)
-  FROM UNNEST(event_params)
-  WHERE key = 'value'
-) AS event_value
-
-  FROM `YOUR_PROJECT.YOUR_GA4_DATASET.events_*`
-  WHERE _TABLE_SUFFIX BETWEEN start_date AND end_date
-),
-
-aggregated AS (
-  SELECT
-    session_id,
-
-    MAX(IF(event_name = 'add_to_cart', 1, 0)) AS add_to_cart,
-    MAX(IF(event_name = 'view_cart', 1, 0)) AS view_cart,
-    MAX(IF(event_name = 'begin_checkout', 1, 0)) AS begin_checkout,
-    MAX(IF(event_name = 'add_shipping_info', 1, 0)) AS add_shipping_info,
-    MAX(IF(event_name = 'add_payment_info', 1, 0)) AS add_payment_info,
-    MAX(IF(event_name = 'purchase', 1, 0)) AS purchase,
-
-    SUM(IF(event_name = 'add_to_cart', IFNULL(event_value, 0), 0)) AS add_to_cart_value,
-    ARRAY_AGG(
-  IF(event_name = 'view_cart', event_value, NULL)
-  IGNORE NULLS
-  ORDER BY event_timestamp DESC
-  LIMIT 1
-)[SAFE_OFFSET(0)] AS view_cart_value,
-    ARRAY_AGG(
-  IF(event_name = 'begin_checkout', event_value, NULL)
-  IGNORE NULLS
-  ORDER BY event_timestamp DESC
-  LIMIT 1
-)[SAFE_OFFSET(0)] AS begin_checkout_value,
-    ARRAY_AGG(
-  IF(event_name = 'add_shipping_info', event_value, NULL)
-  IGNORE NULLS
-  ORDER BY event_timestamp DESC
-  LIMIT 1
-)[SAFE_OFFSET(0)] AS add_shipping_info_value,
-    ARRAY_AGG(
-  IF(event_name = 'add_payment_info', event_value, NULL)
-  IGNORE NULLS
-  ORDER BY event_timestamp DESC
-  LIMIT 1
-)[SAFE_OFFSET(0)] AS add_payment_info_value
-
-  FROM base
-  WHERE session_id IS NOT NULL
-  GROUP BY session_id
-)
-
-SELECT *
-FROM aggregated
-WHERE add_to_cart = 1;
 
 
 -- 5. Validation checks
