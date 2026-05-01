@@ -397,22 +397,32 @@ no_revenue_signals AS (
 ),
 
 device_gap AS (
+  -- Mobile worse than desktop
   SELECT
-    'mobile_vs_desktop',
-    'device',
-    'mobile_conversion_gap',
+    'mobile_vs_desktop' AS entity,
+    'device' AS entity_type,
+    'mobile_conversion_gap' AS signal_type,
+
     CASE
       WHEN m.conversion_rate < d.conversion_rate * 0.7 THEN 'high'
       WHEN m.conversion_rate < d.conversion_rate * 0.9 THEN 'medium'
-      ELSE 'low'
-    END,
+    END AS severity,
+
     m.sessions,
     m.transactions,
     m.revenue AS actual_revenue,
     NULL AS lost_revenue,
     m.conversion_rate AS conversion_rate,
     NULL AS dropoff_rate,
-    CONCAT('Mobile CR is lower than desktop. Mobile CR: ', CAST(ROUND(m.conversion_rate * 100, 2) AS STRING), '%, desktop CR: ', CAST(ROUND(d.conversion_rate * 100, 2) AS STRING), '%.')
+
+    CONCAT(
+      'Mobile converts worse than desktop. Mobile CR: ',
+      CAST(ROUND(m.conversion_rate * 100, 2) AS STRING),
+      '%, desktop CR: ',
+      CAST(ROUND(d.conversion_rate * 100, 2) AS STRING),
+      '%.'
+    ) AS interpretation
+
   FROM `YOUR_PROJECT.leakonic.device_performance` m
   JOIN `YOUR_PROJECT.leakonic.device_performance` d
     ON m.device_category = 'mobile'
@@ -420,6 +430,42 @@ device_gap AS (
   WHERE m.sessions >= 300
     AND d.sessions >= 300
     AND m.conversion_rate < d.conversion_rate * 0.9
+
+  UNION ALL
+
+  -- Desktop worse than mobile
+  SELECT
+    'desktop_vs_mobile' AS entity,
+    'device' AS entity_type,
+    'desktop_conversion_gap' AS signal_type,
+
+    CASE
+      WHEN d.conversion_rate < m.conversion_rate * 0.7 THEN 'high'
+      WHEN d.conversion_rate < m.conversion_rate * 0.9 THEN 'medium'
+    END AS severity,
+
+    d.sessions,
+    d.transactions,
+    d.revenue AS actual_revenue,
+    NULL AS lost_revenue,
+    d.conversion_rate AS conversion_rate,
+    NULL AS dropoff_rate,
+
+    CONCAT(
+      'Desktop converts worse than mobile. Desktop CR: ',
+      CAST(ROUND(d.conversion_rate * 100, 2) AS STRING),
+      '%, mobile CR: ',
+      CAST(ROUND(m.conversion_rate * 100, 2) AS STRING),
+      '%.'
+    ) AS interpretation
+
+  FROM `YOUR_PROJECT.leakonic.device_performance` m
+  JOIN `YOUR_PROJECT.leakonic.device_performance` d
+    ON m.device_category = 'mobile'
+   AND d.device_category = 'desktop'
+  WHERE m.sessions >= 300
+    AND d.sessions >= 300
+    AND d.conversion_rate < m.conversion_rate * 0.9
 ),
 
 funnel_signals AS (
