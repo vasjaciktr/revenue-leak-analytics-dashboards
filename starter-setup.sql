@@ -364,7 +364,8 @@ landing_signals AS (
     END AS severity,
     sessions,
     transactions,
-    revenue,
+    revenue AS actual_revenue,
+    NULL AS lost_revenue,
     conversion_rate AS metric_value,
     CONCAT('Page has traffic but converts below site average. Sessions: ', CAST(sessions AS STRING)) AS interpretation
   FROM `YOUR_PROJECT.leakonic.landing_pages_performance`, site_avg
@@ -384,7 +385,8 @@ no_revenue_signals AS (
     END,
     sessions,
     transactions,
-    revenue,
+    revenue AS actual_revenue,
+    NULL AS lost_revenue,
     revenue_per_session,
     CONCAT('Page receives traffic but generated no revenue. Sessions: ', CAST(sessions AS STRING))
   FROM `YOUR_PROJECT.leakonic.landing_pages_performance`
@@ -404,7 +406,8 @@ device_gap AS (
     END,
     m.sessions,
     m.transactions,
-    m.revenue,
+    m.revenue AS actual_revenue,
+    NULL AS lost_revenue,
     m.conversion_rate,
     CONCAT('Mobile CR is lower than desktop. Mobile CR: ', CAST(ROUND(m.conversion_rate * 100, 2) AS STRING), '%, desktop CR: ', CAST(ROUND(d.conversion_rate * 100, 2) AS STRING), '%.')
   FROM `YOUR_PROJECT.leakonic.device_performance` m
@@ -430,7 +433,8 @@ funnel_signals AS (
 
     from_sessions AS sessions,
     NULL AS transactions,
-    lost_revenue AS revenue,
+    NULL AS actual_revenue,
+    lost_revenue AS lost_revenue,
     dropoff_rate AS metric_value,
 
     CASE
@@ -479,6 +483,26 @@ WHEN from_step = 'add_shipping_info' AND to_step = 'add_payment_info'
   WHERE from_sessions >= 50
     AND dropoff_rate >= 0.3
 )
+
+SELECT
+  entity,
+  entity_type,
+  signal_type,
+  severity,
+
+  CASE
+    WHEN severity = 'high' THEN 3
+    WHEN severity = 'medium' THEN 2
+    WHEN severity = 'low' THEN 1
+    ELSE 0
+  END AS severity_score,
+
+  sessions,
+  transactions,
+  actual_revenue,
+  lost_revenue,
+  metric_value,
+  interpretation
 
 FROM (
   SELECT * FROM landing_signals
