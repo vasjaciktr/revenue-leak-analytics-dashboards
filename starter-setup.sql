@@ -366,7 +366,8 @@ landing_signals AS (
     transactions,
     revenue AS actual_revenue,
     NULL AS lost_revenue,
-    conversion_rate AS metric_value,
+    conversion_rate,
+    NULL AS dropoff_rate
     CONCAT('Page has traffic but converts below site average. Sessions: ', CAST(sessions AS STRING)) AS interpretation
   FROM `YOUR_PROJECT.leakonic.landing_pages_performance`, site_avg
   WHERE sessions >= 300
@@ -387,7 +388,8 @@ no_revenue_signals AS (
     transactions,
     revenue AS actual_revenue,
     NULL AS lost_revenue,
-    revenue_per_session,
+    NULL AS conversion_rate,
+    NULL AS dropoff_rate
     CONCAT('Page receives traffic but generated no revenue. Sessions: ', CAST(sessions AS STRING))
   FROM `YOUR_PROJECT.leakonic.landing_pages_performance`
   WHERE sessions >= 300
@@ -408,7 +410,8 @@ device_gap AS (
     m.transactions,
     m.revenue AS actual_revenue,
     NULL AS lost_revenue,
-    m.conversion_rate,
+    m.conversion_rate AS conversion_rate,
+    NULL AS dropoff_rate
     CONCAT('Mobile CR is lower than desktop. Mobile CR: ', CAST(ROUND(m.conversion_rate * 100, 2) AS STRING), '%, desktop CR: ', CAST(ROUND(d.conversion_rate * 100, 2) AS STRING), '%.')
   FROM `YOUR_PROJECT.leakonic.device_performance` m
   JOIN `YOUR_PROJECT.leakonic.device_performance` d
@@ -435,7 +438,8 @@ funnel_signals AS (
     NULL AS transactions,
     NULL AS actual_revenue,
     lost_revenue AS lost_revenue,
-    dropoff_rate AS metric_value,
+    NULL AS conversion_rate,
+    dropoff_rate AS dropoff_rate
 
     CASE
       WHEN from_step = 'add_to_cart' AND to_step = 'view_cart'
@@ -501,7 +505,8 @@ SELECT
   transactions,
   actual_revenue,
   lost_revenue,
-  metric_value,
+  conversion_rate,
+  dropoff_rate,
   interpretation
 
 FROM (
