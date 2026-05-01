@@ -402,8 +402,8 @@ device_gap AS (
     'device',
     'mobile_conversion_gap',
     CASE
-      WHEN m.conversion_rate < d.conversion_rate * 0.6 THEN 'high'
-      WHEN m.conversion_rate < d.conversion_rate * 0.8 THEN 'medium'
+      WHEN m.conversion_rate < d.conversion_rate * 0.7 THEN 'high'
+      WHEN m.conversion_rate < d.conversion_rate * 0.9 THEN 'medium'
       ELSE 'low'
     END,
     m.sessions,
@@ -419,7 +419,7 @@ device_gap AS (
    AND d.device_category = 'desktop'
   WHERE m.sessions >= 300
     AND d.sessions >= 300
-    AND m.conversion_rate < d.conversion_rate * 0.8
+    AND m.conversion_rate < d.conversion_rate * 0.9
 ),
 
 funnel_signals AS (
