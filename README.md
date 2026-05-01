@@ -8,14 +8,25 @@ A data analytics starter pack that allows data-rich but insight-poor companies q
 - Leak signals (high_traffic_low_conversion, mobile_gap, no_revenue_pages)
 - Funnel performance
 ## Growth
-**Revenue leaks + SEO performance**
+**Revenue leaks by device + Data validation + SEO + GEO**
 - Landing page performance
 - Performance by device
 - Leak signals (high_traffic_low_conversion, mobile_gap, no_revenue_pages)
-- Funnel by device
-- SEO Module
+- Funnel performance
+- Funnel performance by device
+- Data validation
+- Search engine optimization (SEO)
 ## Pro
-**?**
+**Revenue leaks by device + Data validation + SEO + GEO + Product Analysis**
+- Landing page performance
+- Performance by device
+- Leak signals (high_traffic_low_conversion, mobile_gap, no_revenue_pages)
+- Funnel performance
+- Funnel performance by device
+- Data validation
+- Search engine optimization (SEO)
+- Generative engine optimization (GEO)
+- Product analysis
 
 # Core
 **It shows where you're losing revenue.**
