@@ -546,7 +546,7 @@ SELECT
   lost_revenue,
   conversion_rate,
   dropoff_rate,
-  interpretation
+  interpretation AS issues
 
 FROM (
   SELECT * FROM landing_signals
