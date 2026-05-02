@@ -280,31 +280,57 @@ CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.ecommerce_event_validation` AS
 
 WITH base AS (
   SELECT
-    COUNTIF(event_name = 'view_item_list') AS view_item_list,
-    COUNTIF(event_name = 'view_item') AS view_item,
-    COUNTIF(event_name = 'add_to_cart') AS add_to_cart,
-    COUNTIF(event_name = 'view_cart') AS view_cart,
-    COUNTIF(event_name = 'begin_checkout') AS begin_checkout,
-    COUNTIF(event_name = 'add_shipping_info') AS add_shipping_info,
-    COUNTIF(event_name = 'add_payment_info') AS add_payment_info,
-    COUNTIF(event_name = 'purchase') AS purchase
+    CONCAT(
+      user_pseudo_id,
+      '-',
+      CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING)
+    ) AS session_id,
+    event_name
   FROM `YOUR_PROJECT.YOUR_GA4_DATASET.events_*`
   WHERE _TABLE_SUFFIX BETWEEN start_date AND end_date
+),
+
+aggregated AS (
+  SELECT
+    event_name,
+    COUNT(*) AS event_count,
+    COUNT(DISTINCT session_id) AS sessions
+  FROM base
+  WHERE event_name IN (
+    'view_item_list',
+    'view_item',
+    'add_to_cart',
+    'view_cart',
+    'begin_checkout',
+    'add_shipping_info',
+    'add_payment_info',
+    'purchase'
+  )
+  GROUP BY event_name
+),
+
+all_events AS (
+  SELECT 'view_item_list' AS event_name UNION ALL
+  SELECT 'view_item' UNION ALL
+  SELECT 'add_to_cart' UNION ALL
+  SELECT 'view_cart' UNION ALL
+  SELECT 'begin_checkout' UNION ALL
+  SELECT 'add_shipping_info' UNION ALL
+  SELECT 'add_payment_info' UNION ALL
+  SELECT 'purchase'
 )
 
 SELECT
-  *,
-  (
-    IF(view_item_list = 0, 1, 0) +
-    IF(view_item = 0, 1, 0) +
-    IF(add_to_cart = 0, 1, 0) +
-    IF(view_cart = 0, 1, 0) +
-    IF(begin_checkout = 0, 1, 0) +
-    IF(add_shipping_info = 0, 1, 0) +
-    IF(add_payment_info = 0, 1, 0) +
-    IF(purchase = 0, 1, 0)
-  ) AS missing_events
-FROM base;
+  a.event_name,
+  IFNULL(e.event_count, 0) AS event_count,
+  IFNULL(e.sessions, 0) AS sessions,
+  CASE
+    WHEN IFNULL(e.event_count, 0) = 0 THEN 'yes'
+    ELSE 'no'
+  END AS missing
+FROM all_events a
+LEFT JOIN aggregated e
+  ON a.event_name = e.event_name;
 
 -- 6. Overview
 
@@ -528,7 +554,7 @@ WHEN from_step = 'add_shipping_info' AND to_step = 'add_payment_info'
 )
 
 SELECT
-  entity,
+  entity AS place,
   entity_type,
   signal_type,
   severity,
