@@ -276,24 +276,48 @@ FROM transitions_raw;
 -- 5. Validation checks: Ecommerce event counts
 
 
-CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.ecommerce_event_counts` AS
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.ecommerce_event_validation` AS
+
+WITH event_counts AS (
+  SELECT
+    event_name,
+    COUNT(*) AS event_count
+  FROM `YOUR_PROJECT.YOUR_GA4_DATASET.events_*`
+  WHERE _TABLE_SUFFIX BETWEEN start_date AND end_date
+    AND event_name IN (
+      'view_item_list',
+      'view_item',
+      'add_to_cart',
+      'view_cart',
+      'begin_checkout',
+      'add_shipping_info',
+      'add_payment_info',
+      'purchase'
+    )
+  GROUP BY event_name
+),
+
+all_events AS (
+  SELECT 'view_item_list' AS event_name UNION ALL
+  SELECT 'view_item' UNION ALL
+  SELECT 'add_to_cart' UNION ALL
+  SELECT 'view_cart' UNION ALL
+  SELECT 'begin_checkout' UNION ALL
+  SELECT 'add_shipping_info' UNION ALL
+  SELECT 'add_payment_info' UNION ALL
+  SELECT 'purchase'
+)
 
 SELECT
-  event_name,
-  COUNT(*) AS event_count
-FROM `YOUR_PROJECT.YOUR_GA4_DATASET.events_*`
-WHERE _TABLE_SUFFIX BETWEEN start_date AND end_date
-  AND event_name IN (
-    'view_item_list',
-    'view_item',
-    'add_to_cart',
-    'view_cart',
-    'begin_checkout',
-    'add_shipping_info',
-    'add_payment_info',
-    'purchase'
-  )
-GROUP BY event_name;
+  a.event_name,
+  IFNULL(e.event_count, 0) AS event_count,
+  CASE
+    WHEN IFNULL(e.event_count, 0) = 0 THEN 'yes'
+    ELSE 'no'
+  END AS missing
+FROM all_events a
+LEFT JOIN event_counts e
+  ON a.event_name = e.event_name;
 
 -- 6. Overview
 
