@@ -273,47 +273,29 @@ SELECT
 FROM transitions_raw;
 
 
--- 7. Validation checks
+-- 5. Validation checks: Ecommerce event counts
 
-CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.validation_checks` AS
-WITH base AS (
-  SELECT
-    event_name,
-    ecommerce.transaction_id AS transaction_id,
-    ecommerce.purchase_revenue AS purchase_revenue,
-    ARRAY_LENGTH(items) AS item_count
-  FROM `YOUR_PROJECT.YOUR_GA4_DATASET.events_*`
-  WHERE _TABLE_SUFFIX BETWEEN start_date AND end_date
-)
 
-SELECT 'purchase_events_exist' AS check_name,
-       IF(COUNTIF(event_name = 'purchase') > 0, 'ok', 'fail') AS status,
-       COUNTIF(event_name = 'purchase') AS value
-FROM base
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.ecommerce_event_counts` AS
 
-UNION ALL
+SELECT
+  event_name,
+  COUNT(*) AS event_count
+FROM `YOUR_PROJECT.YOUR_GA4_DATASET.events_*`
+WHERE _TABLE_SUFFIX BETWEEN start_date AND end_date
+  AND event_name IN (
+    'view_item_list',
+    'view_item',
+    'add_to_cart',
+    'view_cart',
+    'begin_checkout',
+    'add_shipping_info',
+    'add_payment_info',
+    'purchase'
+  )
+GROUP BY event_name;
 
-SELECT 'purchase_revenue_exists',
-       IF(SUM(IFNULL(purchase_revenue, 0)) > 0, 'ok', 'warning'),
-       SUM(IFNULL(purchase_revenue, 0))
-FROM base
-WHERE event_name = 'purchase'
-
-UNION ALL
-
-SELECT 'transaction_ids_exist',
-       IF(COUNTIF(event_name = 'purchase' AND transaction_id IS NOT NULL) > 0, 'ok', 'fail'),
-       COUNTIF(event_name = 'purchase' AND transaction_id IS NOT NULL)
-FROM base
-
-UNION ALL
-
-SELECT 'purchase_items_exist',
-       IF(COUNTIF(event_name = 'purchase' AND item_count > 0) > 0, 'ok', 'warning'),
-       COUNTIF(event_name = 'purchase' AND item_count > 0)
-FROM base;
-
--- 5. Overview
+-- 6. Overview
 
 CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.site_overview` AS
 SELECT
@@ -343,7 +325,7 @@ WHERE _TABLE_SUFFIX BETWEEN start_date AND end_date
 GROUP BY date;
 
 
--- 6. Signals
+-- 7. Signals
 
 CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.signals` AS
 WITH site_avg AS (
