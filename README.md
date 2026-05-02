@@ -6,15 +6,17 @@ A data analytics starter pack that allows data-rich but insight-poor companies q
 - Landing page performance
 - Performance by device
 - Leak signals (high_traffic_low_conversion, mobile_gap, no_revenue_pages)
+- Basic data validation
 - Funnel performance
 ## Growth
 **Revenue leaks by device + Data validation + SEO + GEO**
 - Landing page performance
 - Performance by device
 - Leak signals (high_traffic_low_conversion, mobile_gap, no_revenue_pages)
+- Basic data validation
 - Funnel performance
+- Enhanced data validation
 - Funnel performance by device
-- Data validation
 - Search engine optimization (SEO)
 ## Pro
 **Revenue leaks by device + Data validation + SEO + GEO + Product Analysis**
