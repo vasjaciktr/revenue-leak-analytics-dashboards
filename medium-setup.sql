@@ -183,94 +183,245 @@ FROM aggregated
 WHERE add_to_cart = 1;
 
 
--- 4. Funnel transitions
+-- 4. Funnel transitions by device
 
-CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.funnel_transitions` AS
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.funnel_transitions_by_device` AS
 
 WITH base AS (
+  SELECT
+    CONCAT(
+      user_pseudo_id,
+      '-',
+      CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING)
+    ) AS session_id,
+
+    device.category AS device_category,
+
+    event_timestamp,
+    event_name,
+
+    (
+      SELECT COALESCE(value.double_value, value.int_value)
+      FROM UNNEST(event_params)
+      WHERE key = 'value'
+    ) AS event_value
+
+  FROM `YOUR_PROJECT.YOUR_GA4_DATASET.events_*`
+  WHERE _TABLE_SUFFIX BETWEEN start_date AND end_date
+),
+
+cart_sessions_by_device AS (
+  SELECT
+    session_id,
+
+    CASE
+      WHEN LOWER(ANY_VALUE(device_category)) IN ('desktop', 'mobile', 'tablet')
+        THEN LOWER(ANY_VALUE(device_category))
+      ELSE 'other'
+    END AS device_category,
+
+    MAX(IF(event_name = 'add_to_cart', 1, 0)) AS add_to_cart,
+    MAX(IF(event_name = 'view_cart', 1, 0)) AS view_cart,
+    MAX(IF(event_name = 'begin_checkout', 1, 0)) AS begin_checkout,
+    MAX(IF(event_name = 'add_shipping_info', 1, 0)) AS add_shipping_info,
+    MAX(IF(event_name = 'add_payment_info', 1, 0)) AS add_payment_info,
+    MAX(IF(event_name = 'purchase', 1, 0)) AS purchase,
+
+    SUM(
+      IF(event_name = 'add_to_cart', IFNULL(event_value, 0), 0)
+    ) AS add_to_cart_value,
+
+    ARRAY_AGG(
+      IF(event_name = 'view_cart', event_value, NULL)
+      IGNORE NULLS
+      ORDER BY event_timestamp DESC
+      LIMIT 1
+    )[SAFE_OFFSET(0)] AS view_cart_value,
+
+    ARRAY_AGG(
+      IF(event_name = 'begin_checkout', event_value, NULL)
+      IGNORE NULLS
+      ORDER BY event_timestamp DESC
+      LIMIT 1
+    )[SAFE_OFFSET(0)] AS begin_checkout_value,
+
+    ARRAY_AGG(
+      IF(event_name = 'add_shipping_info', event_value, NULL)
+      IGNORE NULLS
+      ORDER BY event_timestamp DESC
+      LIMIT 1
+    )[SAFE_OFFSET(0)] AS add_shipping_info_value,
+
+    ARRAY_AGG(
+      IF(event_name = 'add_payment_info', event_value, NULL)
+      IGNORE NULLS
+      ORDER BY event_timestamp DESC
+      LIMIT 1
+    )[SAFE_OFFSET(0)] AS add_payment_info_value
+
+  FROM base
+  WHERE session_id IS NOT NULL
+  GROUP BY session_id
+),
+
+cart_sessions_filtered AS (
   SELECT *
-  FROM `YOUR_PROJECT.leakonic.cart_sessions`
+  FROM cart_sessions_by_device
+  WHERE add_to_cart = 1
 ),
 
 transitions_raw AS (
 
+  -- add_to_cart > view_cart
   SELECT
+    device_category,
+    1 AS transition_order,
     'add_to_cart' AS from_step,
     'view_cart' AS to_step,
+    'Added to cart → Viewed cart' AS transition_label,
+
     COUNTIF(add_to_cart = 1) AS from_sessions,
     COUNTIF(add_to_cart = 1 AND view_cart = 1) AS to_sessions,
-    SUM(IF(add_to_cart = 1 AND view_cart = 0 AND purchase = 0, add_to_cart_value, 0)) AS lost_revenue
-  FROM base
+
+    SUM(
+      IF(
+        add_to_cart = 1
+        AND view_cart = 0
+        AND purchase = 0,
+        add_to_cart_value,
+        0
+      )
+    ) AS lost_revenue
+
+  FROM cart_sessions_filtered
+  GROUP BY device_category
 
   UNION ALL
 
+  -- view_cart > begin_checkout
   SELECT
-    'view_cart',
-    'begin_checkout',
-    COUNTIF(view_cart = 1),
-    COUNTIF(view_cart = 1 AND begin_checkout = 1),
-    SUM(IF(view_cart = 1 AND begin_checkout = 0 AND purchase = 0, IFNULL(view_cart_value, add_to_cart_value), 0))
-  FROM base
+    device_category,
+    2 AS transition_order,
+    'view_cart' AS from_step,
+    'begin_checkout' AS to_step,
+    'Viewed cart → Started checkout' AS transition_label,
+
+    COUNTIF(view_cart = 1) AS from_sessions,
+    COUNTIF(view_cart = 1 AND begin_checkout = 1) AS to_sessions,
+
+    SUM(
+      IF(
+        view_cart = 1
+        AND begin_checkout = 0
+        AND purchase = 0,
+        IFNULL(view_cart_value, add_to_cart_value),
+        0
+      )
+    ) AS lost_revenue
+
+  FROM cart_sessions_filtered
+  GROUP BY device_category
 
   UNION ALL
 
+  -- begin_checkout > add_shipping_info
   SELECT
-  'begin_checkout',
-  'add_shipping_info',
-  COUNTIF(begin_checkout = 1),
-  COUNTIF(begin_checkout = 1 AND add_shipping_info = 1),
-  SUM(
-    IF(
-      begin_checkout = 1
-      AND add_shipping_info = 0
-      AND purchase = 0,
-      IFNULL(begin_checkout_value, add_to_cart_value),
-      0
-    )
-  )
-FROM base
+    device_category,
+    3 AS transition_order,
+    'begin_checkout' AS from_step,
+    'add_shipping_info' AS to_step,
+    'Started checkout → Added shipping info' AS transition_label,
 
-UNION ALL
+    COUNTIF(begin_checkout = 1) AS from_sessions,
+    COUNTIF(begin_checkout = 1 AND add_shipping_info = 1) AS to_sessions,
 
--- add_shipping_info → add_payment_info
-SELECT
-  'add_shipping_info',
-  'add_payment_info',
-  COUNTIF(add_shipping_info = 1),
-  COUNTIF(add_shipping_info = 1 AND add_payment_info = 1),
-  SUM(
-    IF(
-      add_shipping_info = 1
-      AND add_payment_info = 0
-      AND purchase = 0,
-      IFNULL(add_shipping_info_value, begin_checkout_value),
-      0
-    )
-  )
-FROM base
+    SUM(
+      IF(
+        begin_checkout = 1
+        AND add_shipping_info = 0
+        AND purchase = 0,
+        IFNULL(begin_checkout_value, add_to_cart_value),
+        0
+      )
+    ) AS lost_revenue
+
+  FROM cart_sessions_filtered
+  GROUP BY device_category
 
   UNION ALL
 
+  -- add_shipping_info > add_payment_info
   SELECT
-    'add_payment_info',
-    'purchase',
-    COUNTIF(add_payment_info = 1),
-    COUNTIF(add_payment_info = 1 AND purchase = 1),
-    SUM(IF(add_payment_info = 1 AND purchase = 0, IFNULL(add_payment_info_value, begin_checkout_value), 0))
-  FROM base
+    device_category,
+    4 AS transition_order,
+    'add_shipping_info' AS from_step,
+    'add_payment_info' AS to_step,
+    'Added shipping info → Added payment info' AS transition_label,
+
+    COUNTIF(add_shipping_info = 1) AS from_sessions,
+    COUNTIF(add_shipping_info = 1 AND add_payment_info = 1) AS to_sessions,
+
+    SUM(
+      IF(
+        add_shipping_info = 1
+        AND add_payment_info = 0
+        AND purchase = 0,
+        IFNULL(add_shipping_info_value, begin_checkout_value),
+        0
+      )
+    ) AS lost_revenue
+
+  FROM cart_sessions_filtered
+  GROUP BY device_category
+
+  UNION ALL
+
+  -- add_payment_info > purchase
+  SELECT
+    device_category,
+    5 AS transition_order,
+    'add_payment_info' AS from_step,
+    'purchase' AS to_step,
+    'Added payment info → Purchased' AS transition_label,
+
+    COUNTIF(add_payment_info = 1) AS from_sessions,
+    COUNTIF(add_payment_info = 1 AND purchase = 1) AS to_sessions,
+
+    SUM(
+      IF(
+        add_payment_info = 1
+        AND purchase = 0,
+        IFNULL(add_payment_info_value, begin_checkout_value),
+        0
+      )
+    ) AS lost_revenue
+
+  FROM cart_sessions_filtered
+  GROUP BY device_category
 )
 
 SELECT
+  device_category,
+  transition_order,
   from_step,
   to_step,
+  transition_label,
+
   from_sessions,
   to_sessions,
   from_sessions - to_sessions AS dropoff_sessions,
-  lost_revenue,
-  SAFE_DIVIDE(to_sessions, from_sessions) AS conversion_rate,
-  1 - SAFE_DIVIDE(to_sessions, from_sessions) AS dropoff_rate
 
-FROM transitions_raw;
+  lost_revenue,
+
+  SAFE_DIVIDE(to_sessions, from_sessions) AS conversion_rate,
+  1 - SAFE_DIVIDE(to_sessions, from_sessions) AS dropoff_rate,
+
+  SAFE_DIVIDE(lost_revenue, from_sessions - to_sessions) AS avg_lost_revenue_per_dropoff_session
+
+FROM transitions_raw
+ORDER BY
+  device_category,
+  transition_order;
 
 
 -- 5. Validation checks: Ecommerce event counts
