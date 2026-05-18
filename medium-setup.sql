@@ -183,7 +183,142 @@ FROM aggregated
 WHERE add_to_cart = 1;
 
 
--- 4. Funnel transitions by device
+-- 4. Funnel Analysis by Device
+-- It creates:
+-- 4A. funnel_steps_by_device
+-- 4B. funnel_transitions_by_device
+-- 4C. device_funnel_priority
+
+
+-- 4A. Full funnel steps by device
+
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.funnel_steps_by_device` AS
+
+WITH base AS (
+  SELECT
+    CONCAT(
+      user_pseudo_id,
+      '-',
+      CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING)
+    ) AS session_id,
+
+    CASE
+      WHEN LOWER(device.category) IN ('desktop', 'mobile', 'tablet')
+        THEN LOWER(device.category)
+      ELSE 'other'
+    END AS device_category,
+
+    event_name
+
+  FROM `YOUR_PROJECT.YOUR_GA4_DATASET.events_*`
+  WHERE _TABLE_SUFFIX BETWEEN start_date AND end_date
+),
+
+session_steps AS (
+  SELECT
+    session_id,
+    ANY_VALUE(device_category) AS device_category,
+
+    MAX(IF(event_name = 'session_start', 1, 0)) AS session_start,
+    MAX(IF(event_name = 'view_item_list', 1, 0)) AS view_item_list,
+    MAX(IF(event_name = 'view_item', 1, 0)) AS view_item,
+    MAX(IF(event_name = 'add_to_cart', 1, 0)) AS add_to_cart,
+    MAX(IF(event_name = 'view_cart', 1, 0)) AS view_cart,
+    MAX(IF(event_name = 'begin_checkout', 1, 0)) AS begin_checkout,
+    MAX(IF(event_name = 'add_shipping_info', 1, 0)) AS add_shipping_info,
+    MAX(IF(event_name = 'add_payment_info', 1, 0)) AS add_payment_info,
+    MAX(IF(event_name = 'purchase', 1, 0)) AS purchase
+
+  FROM base
+  WHERE session_id IS NOT NULL
+  GROUP BY session_id
+),
+
+funnel_steps AS (
+  SELECT 1 AS step_order, 'session_start' AS step_name, 'Session started' AS step_label UNION ALL
+  SELECT 2, 'view_item_list', 'Viewed product list' UNION ALL
+  SELECT 3, 'view_item', 'Viewed product' UNION ALL
+  SELECT 4, 'add_to_cart', 'Added to cart' UNION ALL
+  SELECT 5, 'view_cart', 'Viewed cart' UNION ALL
+  SELECT 6, 'begin_checkout', 'Started checkout' UNION ALL
+  SELECT 7, 'add_shipping_info', 'Added shipping info' UNION ALL
+  SELECT 8, 'add_payment_info', 'Added payment info' UNION ALL
+  SELECT 9, 'purchase', 'Purchased'
+),
+
+step_counts AS (
+  SELECT
+    s.device_category,
+    f.step_order,
+    f.step_name,
+    f.step_label,
+
+    COUNT(DISTINCT CASE
+      WHEN f.step_name = 'session_start' AND s.session_start = 1 THEN s.session_id
+      WHEN f.step_name = 'view_item_list' AND s.view_item_list = 1 THEN s.session_id
+      WHEN f.step_name = 'view_item' AND s.view_item = 1 THEN s.session_id
+      WHEN f.step_name = 'add_to_cart' AND s.add_to_cart = 1 THEN s.session_id
+      WHEN f.step_name = 'view_cart' AND s.view_cart = 1 THEN s.session_id
+      WHEN f.step_name = 'begin_checkout' AND s.begin_checkout = 1 THEN s.session_id
+      WHEN f.step_name = 'add_shipping_info' AND s.add_shipping_info = 1 THEN s.session_id
+      WHEN f.step_name = 'add_payment_info' AND s.add_payment_info = 1 THEN s.session_id
+      WHEN f.step_name = 'purchase' AND s.purchase = 1 THEN s.session_id
+    END) AS sessions
+
+  FROM session_steps s
+  CROSS JOIN funnel_steps f
+  GROUP BY
+    s.device_category,
+    f.step_order,
+    f.step_name,
+    f.step_label
+),
+
+final AS (
+  SELECT
+    *,
+    FIRST_VALUE(sessions) OVER (
+      PARTITION BY device_category
+      ORDER BY step_order
+    ) AS starting_sessions,
+
+    LAG(sessions) OVER (
+      PARTITION BY device_category
+      ORDER BY step_order
+    ) AS previous_step_sessions
+
+  FROM step_counts
+)
+
+SELECT
+  device_category,
+  step_order,
+  step_name,
+  step_label,
+  sessions,
+
+  SAFE_DIVIDE(sessions, starting_sessions) AS conversion_from_start,
+
+  SAFE_DIVIDE(
+    sessions,
+    previous_step_sessions
+  ) AS conversion_from_previous_step,
+
+  previous_step_sessions - sessions AS dropoff_sessions,
+
+  1 - SAFE_DIVIDE(
+    sessions,
+    previous_step_sessions
+  ) AS dropoff_rate
+
+FROM final
+ORDER BY
+  device_category,
+  step_order;
+
+
+
+-- 4B. Funnel transitions by device
 
 CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.funnel_transitions_by_device` AS
 
@@ -195,7 +330,11 @@ WITH base AS (
       CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING)
     ) AS session_id,
 
-    device.category AS device_category,
+    CASE
+      WHEN LOWER(device.category) IN ('desktop', 'mobile', 'tablet')
+        THEN LOWER(device.category)
+      ELSE 'other'
+    END AS device_category,
 
     event_timestamp,
     event_name,
@@ -213,12 +352,7 @@ WITH base AS (
 cart_sessions_by_device AS (
   SELECT
     session_id,
-
-    CASE
-      WHEN LOWER(ANY_VALUE(device_category)) IN ('desktop', 'mobile', 'tablet')
-        THEN LOWER(ANY_VALUE(device_category))
-      ELSE 'other'
-    END AS device_category,
+    ANY_VALUE(device_category) AS device_category,
 
     MAX(IF(event_name = 'add_to_cart', 1, 0)) AS add_to_cart,
     MAX(IF(event_name = 'view_cart', 1, 0)) AS view_cart,
@@ -398,6 +532,18 @@ transitions_raw AS (
 
   FROM cart_sessions_filtered
   GROUP BY device_category
+),
+
+final AS (
+  SELECT
+    *,
+    from_sessions - to_sessions AS dropoff_sessions,
+    SAFE_DIVIDE(to_sessions, from_sessions) AS conversion_rate,
+    1 - SAFE_DIVIDE(to_sessions, from_sessions) AS dropoff_rate,
+    SUM(lost_revenue) OVER () AS total_lost_revenue,
+    SUM(lost_revenue) OVER (PARTITION BY device_category) AS device_lost_revenue,
+    SUM(lost_revenue) OVER (PARTITION BY transition_label) AS transition_lost_revenue
+  FROM transitions_raw
 )
 
 SELECT
@@ -409,19 +555,172 @@ SELECT
 
   from_sessions,
   to_sessions,
-  from_sessions - to_sessions AS dropoff_sessions,
+  dropoff_sessions,
 
   lost_revenue,
 
-  SAFE_DIVIDE(to_sessions, from_sessions) AS conversion_rate,
-  1 - SAFE_DIVIDE(to_sessions, from_sessions) AS dropoff_rate,
+  SAFE_DIVIDE(lost_revenue, total_lost_revenue) AS share_of_total_lost_revenue,
+  SAFE_DIVIDE(lost_revenue, device_lost_revenue) AS share_of_device_lost_revenue,
+  SAFE_DIVIDE(lost_revenue, transition_lost_revenue) AS share_of_transition_lost_revenue,
 
-  SAFE_DIVIDE(lost_revenue, from_sessions - to_sessions) AS avg_lost_revenue_per_dropoff_session
+  conversion_rate,
+  dropoff_rate,
 
-FROM transitions_raw
+  SAFE_DIVIDE(lost_revenue, dropoff_sessions) AS avg_lost_revenue_per_dropoff_session,
+
+  CASE
+    WHEN transition_order = 1 THEN 'Medium'
+    WHEN transition_order = 2 THEN 'High'
+    WHEN transition_order IN (3, 4, 5) THEN 'Very high'
+    ELSE 'Unknown'
+  END AS revenue_confidence
+
+FROM final
 ORDER BY
   device_category,
   transition_order;
+
+
+
+-- 4C. Device funnel priority summary
+
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.device_funnel_priority` AS
+
+WITH device_leaks AS (
+  SELECT
+    device_category,
+
+    SUM(lost_revenue) AS total_lost_revenue,
+    SUM(dropoff_sessions) AS total_dropoff_sessions,
+
+    ARRAY_AGG(
+      STRUCT(
+        transition_label,
+        lost_revenue,
+        dropoff_rate
+      )
+      ORDER BY lost_revenue DESC
+      LIMIT 1
+    )[SAFE_OFFSET(0)] AS biggest_leak
+
+  FROM `YOUR_PROJECT.leakonic.funnel_transitions_by_device`
+  GROUP BY device_category
+),
+
+device_perf AS (
+  SELECT
+    device_category,
+    sessions,
+    transactions,
+    revenue,
+    conversion_rate,
+    revenue_per_session
+  FROM `YOUR_PROJECT.leakonic.device_performance`
+),
+
+combined AS (
+  SELECT
+    p.device_category,
+
+    p.sessions,
+    p.transactions,
+    p.revenue,
+    p.conversion_rate,
+    p.revenue_per_session,
+
+    IFNULL(l.total_lost_revenue, 0) AS total_lost_revenue,
+    IFNULL(l.total_dropoff_sessions, 0) AS total_dropoff_sessions,
+
+    l.biggest_leak.transition_label AS biggest_leak_step,
+    l.biggest_leak.lost_revenue AS biggest_leak_revenue,
+    l.biggest_leak.dropoff_rate AS biggest_leak_dropoff_rate,
+
+    SAFE_DIVIDE(IFNULL(l.total_lost_revenue, 0), p.revenue) AS lost_revenue_vs_actual_revenue,
+    SAFE_DIVIDE(IFNULL(l.total_lost_revenue, 0), p.sessions) AS lost_revenue_per_session
+
+  FROM device_perf p
+  LEFT JOIN device_leaks l
+    ON p.device_category = l.device_category
+)
+
+SELECT
+  device_category,
+
+  sessions,
+  transactions,
+  revenue,
+  conversion_rate,
+  revenue_per_session,
+
+  total_lost_revenue,
+  total_dropoff_sessions,
+
+  biggest_leak_step,
+  biggest_leak_revenue,
+  biggest_leak_dropoff_rate,
+
+  lost_revenue_vs_actual_revenue,
+  lost_revenue_per_session,
+
+  CASE
+    WHEN sessions >= 1000
+      AND total_lost_revenue >= 10000
+      THEN 'High'
+
+    WHEN sessions >= 300
+      AND total_lost_revenue >= 3000
+      THEN 'Medium'
+
+    WHEN total_lost_revenue > 0
+      THEN 'Low'
+
+    ELSE 'No clear leak'
+  END AS priority,
+
+  CASE
+    WHEN sessions >= 1000
+      AND total_lost_revenue >= 10000
+      THEN CONCAT(
+        'High priority: ',
+        device_category,
+        ' has a major revenue leak. Biggest issue: ',
+        biggest_leak_step,
+        '. Estimated lost revenue: ',
+        CAST(ROUND(total_lost_revenue, 2) AS STRING),
+        '.'
+      )
+
+    WHEN sessions >= 300
+      AND total_lost_revenue >= 3000
+      THEN CONCAT(
+        'Medium priority: ',
+        device_category,
+        ' shows a meaningful funnel leak. Biggest issue: ',
+        biggest_leak_step,
+        '. Estimated lost revenue: ',
+        CAST(ROUND(total_lost_revenue, 2) AS STRING),
+        '.'
+      )
+
+    WHEN total_lost_revenue > 0
+      THEN CONCAT(
+        'Low priority: ',
+        device_category,
+        ' has some estimated leakage, but the business impact appears lower. Biggest issue: ',
+        IFNULL(biggest_leak_step, 'not enough data'),
+        '.'
+      )
+
+    ELSE CONCAT(
+      'No clear revenue leak detected for ',
+      device_category,
+      '.'
+    )
+  END AS interpretation
+
+FROM combined
+ORDER BY
+  total_lost_revenue DESC;
 
 
 -- 5. Validation checks: Ecommerce event counts
