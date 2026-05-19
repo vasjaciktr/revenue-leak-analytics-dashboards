@@ -1280,14 +1280,172 @@ SELECT
   recommended_action
 
 FROM (
-  SELECT * FROM landing_signals
-  UNION ALL SELECT * FROM no_revenue_signals
-  UNION ALL SELECT * FROM device_gap
-  UNION ALL SELECT * FROM device_priority_signals
-  UNION ALL SELECT * FROM device_funnel_signals
-  UNION ALL SELECT * FROM biggest_device_step_leak
-  UNION ALL SELECT * FROM high_dropoff_low_impact_signals
-  UNION ALL SELECT * FROM strong_device_funnel_steps
+
+  SELECT
+    CAST(place AS STRING) AS place,
+    CAST(entity_type AS STRING) AS entity_type,
+    CAST(signal_type AS STRING) AS signal_type,
+    CAST(severity AS STRING) AS severity,
+    CAST(device_category AS STRING) AS device_category,
+    CAST(funnel_step AS STRING) AS funnel_step,
+    CAST(priority AS STRING) AS priority,
+    CAST(sessions AS INT64) AS sessions,
+    CAST(transactions AS INT64) AS transactions,
+    CAST(actual_revenue AS FLOAT64) AS actual_revenue,
+    CAST(lost_revenue AS FLOAT64) AS lost_revenue,
+    CAST(conversion_rate AS FLOAT64) AS conversion_rate,
+    CAST(dropoff_rate AS FLOAT64) AS dropoff_rate,
+    CAST(revenue_confidence AS STRING) AS revenue_confidence,
+    CAST(issues AS STRING) AS issues,
+    CAST(recommended_action AS STRING) AS recommended_action
+  FROM landing_signals
+
+  UNION ALL
+
+  SELECT
+    CAST(place AS STRING),
+    CAST(entity_type AS STRING),
+    CAST(signal_type AS STRING),
+    CAST(severity AS STRING),
+    CAST(device_category AS STRING),
+    CAST(funnel_step AS STRING),
+    CAST(priority AS STRING),
+    CAST(sessions AS INT64),
+    CAST(transactions AS INT64),
+    CAST(actual_revenue AS FLOAT64),
+    CAST(lost_revenue AS FLOAT64),
+    CAST(conversion_rate AS FLOAT64),
+    CAST(dropoff_rate AS FLOAT64),
+    CAST(revenue_confidence AS STRING),
+    CAST(issues AS STRING),
+    CAST(recommended_action AS STRING)
+  FROM no_revenue_signals
+
+  UNION ALL
+
+  SELECT
+    CAST(place AS STRING),
+    CAST(entity_type AS STRING),
+    CAST(signal_type AS STRING),
+    CAST(severity AS STRING),
+    CAST(device_category AS STRING),
+    CAST(funnel_step AS STRING),
+    CAST(priority AS STRING),
+    CAST(sessions AS INT64),
+    CAST(transactions AS INT64),
+    CAST(actual_revenue AS FLOAT64),
+    CAST(lost_revenue AS FLOAT64),
+    CAST(conversion_rate AS FLOAT64),
+    CAST(dropoff_rate AS FLOAT64),
+    CAST(revenue_confidence AS STRING),
+    CAST(issues AS STRING),
+    CAST(recommended_action AS STRING)
+  FROM device_gap
+
+  UNION ALL
+
+  SELECT
+    CAST(place AS STRING),
+    CAST(entity_type AS STRING),
+    CAST(signal_type AS STRING),
+    CAST(severity AS STRING),
+    CAST(device_category AS STRING),
+    CAST(funnel_step AS STRING),
+    CAST(priority AS STRING),
+    CAST(sessions AS INT64),
+    CAST(transactions AS INT64),
+    CAST(actual_revenue AS FLOAT64),
+    CAST(lost_revenue AS FLOAT64),
+    CAST(conversion_rate AS FLOAT64),
+    CAST(dropoff_rate AS FLOAT64),
+    CAST(revenue_confidence AS STRING),
+    CAST(issues AS STRING),
+    CAST(recommended_action AS STRING)
+  FROM device_priority_signals
+
+  UNION ALL
+
+  SELECT
+    CAST(place AS STRING),
+    CAST(entity_type AS STRING),
+    CAST(signal_type AS STRING),
+    CAST(severity AS STRING),
+    CAST(device_category AS STRING),
+    CAST(funnel_step AS STRING),
+    CAST(priority AS STRING),
+    CAST(sessions AS INT64),
+    CAST(transactions AS INT64),
+    CAST(actual_revenue AS FLOAT64),
+    CAST(lost_revenue AS FLOAT64),
+    CAST(conversion_rate AS FLOAT64),
+    CAST(dropoff_rate AS FLOAT64),
+    CAST(revenue_confidence AS STRING),
+    CAST(issues AS STRING),
+    CAST(recommended_action AS STRING)
+  FROM device_funnel_signals
+
+  UNION ALL
+
+  SELECT
+    CAST(place AS STRING),
+    CAST(entity_type AS STRING),
+    CAST(signal_type AS STRING),
+    CAST(severity AS STRING),
+    CAST(device_category AS STRING),
+    CAST(funnel_step AS STRING),
+    CAST(priority AS STRING),
+    CAST(sessions AS INT64),
+    CAST(transactions AS INT64),
+    CAST(actual_revenue AS FLOAT64),
+    CAST(lost_revenue AS FLOAT64),
+    CAST(conversion_rate AS FLOAT64),
+    CAST(dropoff_rate AS FLOAT64),
+    CAST(revenue_confidence AS STRING),
+    CAST(issues AS STRING),
+    CAST(recommended_action AS STRING)
+  FROM biggest_device_step_leak
+
+  UNION ALL
+
+  SELECT
+    CAST(place AS STRING),
+    CAST(entity_type AS STRING),
+    CAST(signal_type AS STRING),
+    CAST(severity AS STRING),
+    CAST(device_category AS STRING),
+    CAST(funnel_step AS STRING),
+    CAST(priority AS STRING),
+    CAST(sessions AS INT64),
+    CAST(transactions AS INT64),
+    CAST(actual_revenue AS FLOAT64),
+    CAST(lost_revenue AS FLOAT64),
+    CAST(conversion_rate AS FLOAT64),
+    CAST(dropoff_rate AS FLOAT64),
+    CAST(revenue_confidence AS STRING),
+    CAST(issues AS STRING),
+    CAST(recommended_action AS STRING)
+  FROM high_dropoff_low_impact_signals
+
+  UNION ALL
+
+  SELECT
+    CAST(place AS STRING),
+    CAST(entity_type AS STRING),
+    CAST(signal_type AS STRING),
+    CAST(severity AS STRING),
+    CAST(device_category AS STRING),
+    CAST(funnel_step AS STRING),
+    CAST(priority AS STRING),
+    CAST(sessions AS INT64),
+    CAST(transactions AS INT64),
+    CAST(actual_revenue AS FLOAT64),
+    CAST(lost_revenue AS FLOAT64),
+    CAST(conversion_rate AS FLOAT64),
+    CAST(dropoff_rate AS FLOAT64),
+    CAST(revenue_confidence AS STRING),
+    CAST(issues AS STRING),
+    CAST(recommended_action AS STRING)
+  FROM strong_device_funnel_steps
 )
 
 ORDER BY
