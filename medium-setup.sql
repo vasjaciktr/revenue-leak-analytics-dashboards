@@ -810,77 +810,129 @@ WHERE _TABLE_SUFFIX BETWEEN start_date AND end_date
 GROUP BY date;
 
 
--- 7. Signals
+-- 7. Signals - Medium Package
+-- Enhanced with device-level funnel leaks and device priority logic
 
 CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.signals` AS
+
 WITH site_avg AS (
-  SELECT AVG(conversion_rate) AS avg_page_cr
+  SELECT
+    AVG(conversion_rate) AS avg_page_cr
   FROM `YOUR_PROJECT.leakonic.landing_pages_performance`
   WHERE sessions >= 50
 ),
 
+
+-- 7.1 Landing pages with traffic but weak conversion
+
 landing_signals AS (
   SELECT
-    landing_page AS entity,
+    landing_page AS place,
     'landing_page' AS entity_type,
     'high_traffic_low_conversion' AS signal_type,
+
     CASE
       WHEN sessions >= 1000 AND conversion_rate < avg_page_cr * 0.5 THEN 'high'
       WHEN sessions >= 300 AND conversion_rate < avg_page_cr * 0.5 THEN 'medium'
       ELSE 'low'
     END AS severity,
+
+    NULL AS device_category,
+    NULL AS funnel_step,
+    NULL AS priority,
+
     sessions,
     transactions,
     revenue AS actual_revenue,
     NULL AS lost_revenue,
     conversion_rate,
     NULL AS dropoff_rate,
-    CONCAT('Page has traffic but converts below site average. Sessions: ', CAST(sessions AS STRING)) AS interpretation
+    NULL AS revenue_confidence,
+
+    CONCAT(
+      'This landing page receives traffic but converts below the site average. Sessions: ',
+      CAST(sessions AS STRING),
+      ', conversion rate: ',
+      CAST(ROUND(conversion_rate * 100, 2) AS STRING),
+      '%.'
+    ) AS issues,
+
+    'Review search intent alignment, page content, trust signals, product relevance, internal links, and calls to action.' AS recommended_action
+
   FROM `YOUR_PROJECT.leakonic.landing_pages_performance`, site_avg
   WHERE sessions >= 300
     AND conversion_rate < avg_page_cr * 0.5
 ),
 
+
+-- 7.2 Landing pages with traffic but no revenue
+
 no_revenue_signals AS (
   SELECT
-    landing_page,
-    'landing_page',
-    'traffic_no_revenue',
+    landing_page AS place,
+    'landing_page' AS entity_type,
+    'traffic_no_revenue' AS signal_type,
+
     CASE
       WHEN sessions >= 1000 THEN 'high'
       WHEN sessions >= 300 THEN 'medium'
       ELSE 'low'
-    END,
+    END AS severity,
+
+    NULL AS device_category,
+    NULL AS funnel_step,
+    NULL AS priority,
+
     sessions,
     transactions,
     revenue AS actual_revenue,
     NULL AS lost_revenue,
     0 AS conversion_rate,
     NULL AS dropoff_rate,
-    CONCAT('Page receives traffic but generated no revenue. Sessions: ', CAST(sessions AS STRING))
+    NULL AS revenue_confidence,
+
+    CONCAT(
+      'This landing page receives traffic but generated no revenue. Sessions: ',
+      CAST(sessions AS STRING),
+      '.'
+    ) AS issues,
+
+    'Check whether the page targets commercial intent, links to relevant products or categories, and gives users a clear next step.' AS recommended_action
+
   FROM `YOUR_PROJECT.leakonic.landing_pages_performance`
   WHERE sessions >= 300
     AND IFNULL(revenue, 0) = 0
 ),
 
+
+-- 7.3 General mobile vs desktop conversion gap
+-- Kept from Starter, but Medium should not rely on this alone.
+
 device_gap AS (
+
   -- Mobile worse than desktop
   SELECT
-    'mobile_vs_desktop' AS entity,
+    'mobile_vs_desktop' AS place,
     'device' AS entity_type,
     'mobile_conversion_gap' AS signal_type,
 
     CASE
       WHEN m.conversion_rate < d.conversion_rate * 0.7 THEN 'high'
       WHEN m.conversion_rate < d.conversion_rate * 0.9 THEN 'medium'
+      ELSE 'low'
     END AS severity,
+
+    'mobile' AS device_category,
+    NULL AS funnel_step,
+    NULL AS priority,
 
     m.sessions,
     m.transactions,
     m.revenue AS actual_revenue,
     NULL AS lost_revenue,
-    m.conversion_rate AS conversion_rate,
+    m.conversion_rate,
     NULL AS dropoff_rate,
+    NULL AS revenue_confidence,
 
     CONCAT(
       'Mobile converts worse than desktop. Mobile CR: ',
@@ -888,7 +940,9 @@ device_gap AS (
       '%, desktop CR: ',
       CAST(ROUND(d.conversion_rate * 100, 2) AS STRING),
       '%.'
-    ) AS interpretation
+    ) AS issues,
+
+    'Use the device-level funnel signals to identify the exact mobile step causing the gap.' AS recommended_action
 
   FROM `YOUR_PROJECT.leakonic.device_performance` m
   JOIN `YOUR_PROJECT.leakonic.device_performance` d
@@ -902,21 +956,27 @@ device_gap AS (
 
   -- Desktop worse than mobile
   SELECT
-    'desktop_vs_mobile' AS entity,
+    'desktop_vs_mobile' AS place,
     'device' AS entity_type,
     'desktop_conversion_gap' AS signal_type,
 
     CASE
       WHEN d.conversion_rate < m.conversion_rate * 0.7 THEN 'high'
       WHEN d.conversion_rate < m.conversion_rate * 0.9 THEN 'medium'
+      ELSE 'low'
     END AS severity,
+
+    'desktop' AS device_category,
+    NULL AS funnel_step,
+    NULL AS priority,
 
     d.sessions,
     d.transactions,
     d.revenue AS actual_revenue,
     NULL AS lost_revenue,
-    d.conversion_rate AS conversion_rate,
+    d.conversion_rate,
     NULL AS dropoff_rate,
+    NULL AS revenue_confidence,
 
     CONCAT(
       'Desktop converts worse than mobile. Desktop CR: ',
@@ -924,7 +984,9 @@ device_gap AS (
       '%, mobile CR: ',
       CAST(ROUND(m.conversion_rate * 100, 2) AS STRING),
       '%.'
-    ) AS interpretation
+    ) AS issues,
+
+    'Use the device-level funnel signals to identify the exact desktop step causing the gap.' AS recommended_action
 
   FROM `YOUR_PROJECT.leakonic.device_performance` m
   JOIN `YOUR_PROJECT.leakonic.device_performance` d
@@ -935,74 +997,262 @@ device_gap AS (
     AND d.conversion_rate < m.conversion_rate * 0.9
 ),
 
-funnel_signals AS (
+
+-- 7.4 Device-level funnel priority signals
+-- Uses the Medium device_funnel_priority table.
+
+device_priority_signals AS (
   SELECT
-    CONCAT(from_step, '_to_', to_step) AS entity,
-    'funnel' AS entity_type,
-    CONCAT(from_step, '_to_', to_step, '_dropoff') AS signal_type,
+    device_category AS place,
+    'device' AS entity_type,
+    'device_revenue_leak_priority' AS signal_type,
+
+    LOWER(priority) AS severity,
+
+    device_category,
+    biggest_leak_step AS funnel_step,
+    priority,
+
+    sessions,
+    transactions,
+    revenue AS actual_revenue,
+    total_lost_revenue AS lost_revenue,
+    conversion_rate,
+    biggest_leak_dropoff_rate AS dropoff_rate,
+    NULL AS revenue_confidence,
+
+    CONCAT(
+      device_category,
+      ' is a ',
+      LOWER(priority),
+      ' priority device. Total estimated lost revenue: ',
+      CAST(ROUND(total_lost_revenue, 2) AS STRING),
+      '. Biggest leak: ',
+      IFNULL(biggest_leak_step, 'not enough data'),
+      '.'
+    ) AS issues,
 
     CASE
-      WHEN dropoff_rate >= 0.7 THEN 'high'
-      WHEN dropoff_rate >= 0.5 THEN 'medium'
+      WHEN biggest_leak_step LIKE '%Added to cart → Viewed cart%'
+        THEN 'Review cart visibility, mini-cart behaviour, add-to-cart feedback, sticky cart buttons, and whether users clearly understand how to reach the cart.'
+
+      WHEN biggest_leak_step LIKE '%Viewed cart → Started checkout%'
+        THEN 'Review cart page clarity, checkout CTA visibility, delivery cost messaging, free-delivery threshold, and trust signals before checkout.'
+
+      WHEN biggest_leak_step LIKE '%Started checkout → Added shipping info%'
+        THEN 'Review checkout form friction, mobile usability, address fields, account/login interruptions, and delivery information visibility.'
+
+      WHEN biggest_leak_step LIKE '%Added shipping info → Added payment info%'
+        THEN 'Review delivery options, shipping cost surprises, delivery date expectations, and whether users see blockers before payment.'
+
+      WHEN biggest_leak_step LIKE '%Added payment info → Purchased%'
+        THEN 'Review payment errors, payment methods, 3DS friction, payment trust signals, and failed transaction behaviour.'
+
+      ELSE 'Review the biggest device-specific funnel step and compare it with other devices to identify whether the issue is device-specific or site-wide.'
+    END AS recommended_action
+
+  FROM `YOUR_PROJECT.leakonic.device_funnel_priority`
+  WHERE priority IN ('High', 'Medium')
+),
+
+
+-- 7.5 Device-specific funnel step drop-off signals
+-- This replaces the Starter global funnel_signals logic.
+
+device_funnel_signals AS (
+  SELECT
+    CONCAT(device_category, ': ', transition_label) AS place,
+    'device_funnel_step' AS entity_type,
+    'device_funnel_step_dropoff' AS signal_type,
+
+    CASE
+      WHEN lost_revenue >= 10000 AND dropoff_rate >= 0.5 THEN 'high'
+      WHEN lost_revenue >= 3000 AND dropoff_rate >= 0.3 THEN 'medium'
       WHEN dropoff_rate >= 0.3 THEN 'low'
+      ELSE 'low'
     END AS severity,
+
+    device_category,
+    transition_label AS funnel_step,
+    NULL AS priority,
 
     from_sessions AS sessions,
     NULL AS transactions,
     NULL AS actual_revenue,
-    lost_revenue AS lost_revenue,
-    NULL AS conversion_rate,
-    dropoff_rate AS dropoff_rate,
+    lost_revenue,
+    conversion_rate,
+    dropoff_rate,
+    revenue_confidence,
+
+    CONCAT(
+      device_category,
+      ' users drop off between ',
+      transition_label,
+      '. Drop-off rate: ',
+      CAST(ROUND(dropoff_rate * 100, 2) AS STRING),
+      '%. Estimated lost revenue: ',
+      CAST(ROUND(lost_revenue, 2) AS STRING),
+      '. Revenue confidence: ',
+      IFNULL(revenue_confidence, 'Unknown'),
+      '.'
+    ) AS issues,
 
     CASE
       WHEN from_step = 'add_to_cart' AND to_step = 'view_cart'
-        THEN CONCAT(
-          'Users add products to cart but do not open the cart. Estimated lost revenue: ',
-          CAST(ROUND(lost_revenue, 2) AS STRING)
-        )
+        THEN 'Check whether users clearly see that the product was added to cart, whether the cart icon is visible, and whether the next step to view cart is obvious.'
 
       WHEN from_step = 'view_cart' AND to_step = 'begin_checkout'
-        THEN CONCAT(
-          'Users open the cart but do not proceed to checkout. Estimated lost revenue: ',
-          CAST(ROUND(lost_revenue, 2) AS STRING)
-        )
+        THEN 'Check the cart page CTA, delivery cost visibility, minimum order or free-delivery messaging, trust signals, and whether the checkout button is prominent on this device.'
 
       WHEN from_step = 'begin_checkout' AND to_step = 'add_shipping_info'
-  THEN CONCAT(
-    'Users start checkout but do not enter shipping details. Lost revenue: ',
-    CAST(ROUND(lost_revenue, 2) AS STRING)
-  )
+        THEN 'Check checkout form usability, login/account friction, address field errors, mobile layout problems, and whether delivery expectations are clear.'
 
-WHEN from_step = 'add_shipping_info' AND to_step = 'add_payment_info'
-  THEN CONCAT(
-    'Users enter shipping details but do not proceed to payment. Lost revenue: ',
-    CAST(ROUND(lost_revenue, 2) AS STRING)
-  )
+      WHEN from_step = 'add_shipping_info' AND to_step = 'add_payment_info'
+        THEN 'Check shipping method clarity, delivery date availability, delivery cost surprises, and whether users face blockers before payment.'
 
       WHEN from_step = 'add_payment_info' AND to_step = 'purchase'
-        THEN CONCAT(
-          'Users reach the payment step but do not complete purchase. Estimated lost revenue: ',
-          CAST(ROUND(lost_revenue, 2) AS STRING)
-        )
+        THEN 'Check payment errors, available payment methods, card validation, 3DS issues, and final order confirmation friction.'
 
-      ELSE CONCAT(
-        'Users drop off between ',
-        from_step,
-        ' and ',
-        to_step,
-        '. Estimated lost revenue: ',
-        CAST(ROUND(lost_revenue, 2) AS STRING)
-      )
-    END AS interpretation
+      ELSE 'Review this funnel step by device and compare it with other devices to identify whether the issue is technical, UX-related, or expectation-related.'
+    END AS recommended_action
 
-  FROM `YOUR_PROJECT.leakonic.funnel_transitions`
-
+  FROM `YOUR_PROJECT.leakonic.funnel_transitions_by_device`
   WHERE from_sessions >= 50
-    AND dropoff_rate >= 0.3
+    AND (
+      dropoff_rate >= 0.3
+      OR lost_revenue >= 3000
+    )
+),
+
+
+-- 7.6 Single biggest device-step revenue leak
+-- One headline signal for the Medium package.
+
+biggest_device_step_leak AS (
+  SELECT
+    CONCAT(device_category, ': ', transition_label) AS place,
+    'device_funnel_step' AS entity_type,
+    'biggest_device_step_revenue_leak' AS signal_type,
+
+    'high' AS severity,
+
+    device_category,
+    transition_label AS funnel_step,
+    'High' AS priority,
+
+    from_sessions AS sessions,
+    NULL AS transactions,
+    NULL AS actual_revenue,
+    lost_revenue,
+    conversion_rate,
+    dropoff_rate,
+    revenue_confidence,
+
+    CONCAT(
+      'The biggest detected device-level revenue leak is ',
+      device_category,
+      ' users at ',
+      transition_label,
+      '. Estimated lost revenue: ',
+      CAST(ROUND(lost_revenue, 2) AS STRING),
+      '. Drop-off rate: ',
+      CAST(ROUND(dropoff_rate * 100, 2) AS STRING),
+      '%.'
+    ) AS issues,
+
+    'Prioritise this device-step combination first because it has the largest estimated revenue impact in the funnel.' AS recommended_action
+
+  FROM `YOUR_PROJECT.leakonic.funnel_transitions_by_device`
+  WHERE lost_revenue > 0
+  QUALIFY ROW_NUMBER() OVER (ORDER BY lost_revenue DESC) = 1
+),
+
+
+-- 7.7 High drop-off, but low business impact
+-- Helps prevent users from chasing small segments only because the percentage looks bad.
+
+high_dropoff_low_impact_signals AS (
+  SELECT
+    CONCAT(device_category, ': ', transition_label) AS place,
+    'device_funnel_step' AS entity_type,
+    'high_dropoff_low_impact' AS signal_type,
+
+    'low' AS severity,
+
+    device_category,
+    transition_label AS funnel_step,
+    'Low' AS priority,
+
+    from_sessions AS sessions,
+    NULL AS transactions,
+    NULL AS actual_revenue,
+    lost_revenue,
+    conversion_rate,
+    dropoff_rate,
+    revenue_confidence,
+
+    CONCAT(
+      device_category,
+      ' has a high drop-off rate at ',
+      transition_label,
+      ', but the estimated lost revenue is relatively low. Drop-off rate: ',
+      CAST(ROUND(dropoff_rate * 100, 2) AS STRING),
+      '%, estimated lost revenue: ',
+      CAST(ROUND(lost_revenue, 2) AS STRING),
+      '.'
+    ) AS issues,
+
+    'Do not prioritise this issue before higher-revenue leaks unless it affects a strategically important segment.' AS recommended_action
+
+  FROM `YOUR_PROJECT.leakonic.funnel_transitions_by_device`
+  WHERE from_sessions >= 50
+    AND dropoff_rate >= 0.6
+    AND lost_revenue < 3000
+),
+
+
+-- 7.8 Strong device funnel performance
+-- Optional positive/neutral signal. Keeps the report from being only negative.
+
+strong_device_funnel_steps AS (
+  SELECT
+    CONCAT(device_category, ': ', transition_label) AS place,
+    'device_funnel_step' AS entity_type,
+    'strong_device_funnel_step' AS signal_type,
+
+    'low' AS severity,
+
+    device_category,
+    transition_label AS funnel_step,
+    NULL AS priority,
+
+    from_sessions AS sessions,
+    NULL AS transactions,
+    NULL AS actual_revenue,
+    lost_revenue,
+    conversion_rate,
+    dropoff_rate,
+    revenue_confidence,
+
+    CONCAT(
+      device_category,
+      ' performs relatively well at ',
+      transition_label,
+      '. Drop-off rate is only ',
+      CAST(ROUND(dropoff_rate * 100, 2) AS STRING),
+      '%.'
+    ) AS issues,
+
+    'Use this step as a benchmark when reviewing weaker device-specific funnel steps.' AS recommended_action
+
+  FROM `YOUR_PROJECT.leakonic.funnel_transitions_by_device`
+  WHERE from_sessions >= 300
+    AND dropoff_rate <= 0.2
 )
 
+
 SELECT
-  entity AS place,
+  place,
   entity_type,
   signal_type,
   severity,
@@ -1014,17 +1264,33 @@ SELECT
     ELSE 0
   END AS severity_score,
 
+  device_category,
+  funnel_step,
+  priority,
+
   sessions,
   transactions,
   actual_revenue,
   lost_revenue,
   conversion_rate,
   dropoff_rate,
-  interpretation AS issues
+  revenue_confidence,
+
+  issues,
+  recommended_action
 
 FROM (
   SELECT * FROM landing_signals
   UNION ALL SELECT * FROM no_revenue_signals
   UNION ALL SELECT * FROM device_gap
-  UNION ALL SELECT * FROM funnel_signals
-);
+  UNION ALL SELECT * FROM device_priority_signals
+  UNION ALL SELECT * FROM device_funnel_signals
+  UNION ALL SELECT * FROM biggest_device_step_leak
+  UNION ALL SELECT * FROM high_dropoff_low_impact_signals
+  UNION ALL SELECT * FROM strong_device_funnel_steps
+)
+
+ORDER BY
+  severity_score DESC,
+  lost_revenue DESC,
+  sessions DESC;
