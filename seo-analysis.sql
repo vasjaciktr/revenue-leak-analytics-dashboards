@@ -7,9 +7,8 @@
 -- 5) Keyword Position Issues
 --
 -- Before running:
--- 1. Replace `your_source_project.searchconsole` with your GSC BigQuery export project.dataset.
--- 2. Replace `your_output_project.your_output_dataset` with your reporting/output project.dataset.
--- 3. Make sure the output dataset already exists.
+-- 1. Replace `YOUR_PROJECT.searchconsole` with your GSC BigQuery export project.dataset.
+-- 2. Make sure the output dataset already exists.
 
 DECLARE period_days INT64 DEFAULT 28;
 DECLARE current_start_offset INT64 DEFAULT 27;
@@ -39,7 +38,7 @@ DECLARE min_position_lost_clicks INT64 DEFAULT 0;
 
 -- 1.1 Daily organic traffic trend
 
-CREATE OR REPLACE TABLE `your_output_project.your_output_dataset.seo_overview_daily`
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.seo_overview_daily`
 PARTITION BY data_date
 AS
 SELECT
@@ -52,13 +51,13 @@ SELECT
 
   SAFE_DIVIDE(SUM(sum_top_position), SUM(impressions)) + 1 AS avg_position
 
-FROM `your_source_project.searchconsole.searchdata_site_impression`
+FROM `YOUR_PROJECT.searchconsole.searchdata_site_impression`
 GROUP BY data_date;
 
 
 -- 1.2 Traffic split charts: device, country, search type
 
-CREATE OR REPLACE TABLE `your_output_project.your_output_dataset.seo_overview_splits_daily`
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.seo_overview_splits_daily`
 PARTITION BY data_date
 CLUSTER BY split_type, split_value
 AS
@@ -73,7 +72,7 @@ SELECT
   SAFE_DIVIDE(SUM(clicks), SUM(impressions)) AS ctr,
   SAFE_DIVIDE(SUM(sum_top_position), SUM(impressions)) + 1 AS avg_position
 
-FROM `your_source_project.searchconsole.searchdata_site_impression`
+FROM `YOUR_PROJECT.searchconsole.searchdata_site_impression`
 GROUP BY data_date, split_type, split_value
 
 UNION ALL
@@ -88,7 +87,7 @@ SELECT
   SAFE_DIVIDE(SUM(clicks), SUM(impressions)) AS ctr,
   SAFE_DIVIDE(SUM(sum_top_position), SUM(impressions)) + 1 AS avg_position
 
-FROM `your_source_project.searchconsole.searchdata_site_impression`
+FROM `YOUR_PROJECT.searchconsole.searchdata_site_impression`
 GROUP BY data_date, split_type, split_value
 
 UNION ALL
@@ -103,13 +102,13 @@ SELECT
   SAFE_DIVIDE(SUM(clicks), SUM(impressions)) AS ctr,
   SAFE_DIVIDE(SUM(sum_top_position), SUM(impressions)) + 1 AS avg_position
 
-FROM `your_source_project.searchconsole.searchdata_site_impression`
+FROM `YOUR_PROJECT.searchconsole.searchdata_site_impression`
 GROUP BY data_date, split_type, split_value;
 
 
 -- 1.3 Top Organic Leaks table
 
-CREATE OR REPLACE TABLE `your_output_project.your_output_dataset.seo_overview_top_leaks`
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.seo_overview_top_leaks`
 PARTITION BY snapshot_date
 CLUSTER BY issue_type
 AS
@@ -119,12 +118,12 @@ WITH latest_date AS (
     MIN(max_data_date) AS snapshot_date
   FROM (
     SELECT MAX(data_date) AS max_data_date
-    FROM `your_source_project.searchconsole.searchdata_site_impression`
+    FROM `YOUR_PROJECT.searchconsole.searchdata_site_impression`
 
     UNION ALL
 
     SELECT MAX(data_date) AS max_data_date
-    FROM `your_source_project.searchconsole.searchdata_url_impression`
+    FROM `YOUR_PROJECT.searchconsole.searchdata_url_impression`
   )
 ),
 
@@ -148,7 +147,7 @@ periodized AS (
     SUM(impressions) AS impressions,
     SUM(sum_position) AS sum_position
 
-  FROM `your_source_project.searchconsole.searchdata_url_impression`
+  FROM `YOUR_PROJECT.searchconsole.searchdata_url_impression`
   CROSS JOIN latest_date l
 
   WHERE data_date BETWEEN DATE_SUB(l.snapshot_date, INTERVAL previous_start_offset DAY)
@@ -250,7 +249,7 @@ WHERE lost_clicks > 0;
 
 -- 1.4 SEO Overview scorecards
 
-CREATE OR REPLACE TABLE `your_output_project.your_output_dataset.seo_overview_scorecards`
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.seo_overview_scorecards`
 PARTITION BY snapshot_date
 AS
 
@@ -259,12 +258,12 @@ WITH latest_date AS (
     MIN(max_data_date) AS snapshot_date
   FROM (
     SELECT MAX(data_date) AS max_data_date
-    FROM `your_source_project.searchconsole.searchdata_site_impression`
+    FROM `YOUR_PROJECT.searchconsole.searchdata_site_impression`
 
     UNION ALL
 
     SELECT MAX(data_date) AS max_data_date
-    FROM `your_source_project.searchconsole.searchdata_url_impression`
+    FROM `YOUR_PROJECT.searchconsole.searchdata_url_impression`
   )
 ),
 
@@ -286,7 +285,7 @@ site_periods AS (
     SUM(impressions) AS impressions,
     SUM(sum_top_position) AS sum_top_position
 
-  FROM `your_source_project.searchconsole.searchdata_site_impression`
+  FROM `YOUR_PROJECT.searchconsole.searchdata_site_impression`
   CROSS JOIN latest_date l
 
   WHERE data_date BETWEEN DATE_SUB(l.snapshot_date, INTERVAL previous_start_offset DAY)
@@ -320,7 +319,7 @@ issue_counts AS (
     snapshot_date,
     COUNT(DISTINCT url) AS urls_with_issues,
     COUNT(DISTINCT query) AS queries_with_issues
-  FROM `your_output_project.your_output_dataset.seo_overview_top_leaks`
+  FROM `YOUR_PROJECT.leakonic.seo_overview_top_leaks`
   GROUP BY snapshot_date
 )
 
@@ -355,7 +354,7 @@ LEFT JOIN issue_counts i
 -- PART 2. CANNIBALIZATION
 -- ============================================================
 
-CREATE OR REPLACE TABLE `your_output_project.your_output_dataset.seo_cannibalization`
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.seo_cannibalization`
 PARTITION BY snapshot_date
 CLUSTER BY url_count, dominant_url_changed
 AS
@@ -365,12 +364,12 @@ WITH latest_date AS (
     MIN(max_data_date) AS snapshot_date
   FROM (
     SELECT MAX(data_date) AS max_data_date
-    FROM `your_source_project.searchconsole.searchdata_site_impression`
+    FROM `YOUR_PROJECT.searchconsole.searchdata_site_impression`
 
     UNION ALL
 
     SELECT MAX(data_date) AS max_data_date
-    FROM `your_source_project.searchconsole.searchdata_url_impression`
+    FROM `YOUR_PROJECT.searchconsole.searchdata_url_impression`
   )
 ),
 
@@ -394,7 +393,7 @@ url_periodized AS (
     SUM(impressions) AS impressions,
     SUM(sum_position) AS sum_position
 
-  FROM `your_source_project.searchconsole.searchdata_url_impression`
+  FROM `YOUR_PROJECT.searchconsole.searchdata_url_impression`
   CROSS JOIN latest_date l
 
   WHERE data_date BETWEEN DATE_SUB(l.snapshot_date, INTERVAL previous_start_offset DAY)
@@ -553,7 +552,7 @@ query_periodized AS (
     SUM(impressions) AS impressions,
     SUM(sum_top_position) AS sum_top_position
 
-  FROM `your_source_project.searchconsole.searchdata_site_impression`
+  FROM `YOUR_PROJECT.searchconsole.searchdata_site_impression`
   CROSS JOIN latest_date l
 
   WHERE data_date BETWEEN DATE_SUB(l.snapshot_date, INTERVAL previous_start_offset DAY)
@@ -658,7 +657,7 @@ WHERE c.url_count >= 2
 
 -- 3.1 CTR position benchmarks from previous period
 
-CREATE OR REPLACE TABLE `your_output_project.your_output_dataset.seo_ctr_position_benchmarks`
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.seo_ctr_position_benchmarks`
 PARTITION BY snapshot_date
 CLUSTER BY position_bucket
 AS
@@ -666,7 +665,7 @@ AS
 WITH latest_date AS (
   SELECT
     MAX(data_date) AS snapshot_date
-  FROM `your_source_project.searchconsole.searchdata_url_impression`
+  FROM `YOUR_PROJECT.searchconsole.searchdata_url_impression`
 ),
 
 previous_period AS (
@@ -679,7 +678,7 @@ previous_period AS (
     SUM(impressions) AS impressions,
     SAFE_DIVIDE(SUM(sum_position), SUM(impressions)) + 1 AS avg_position
 
-  FROM `your_source_project.searchconsole.searchdata_url_impression`
+  FROM `YOUR_PROJECT.searchconsole.searchdata_url_impression`
   CROSS JOIN latest_date l
 
   WHERE data_date BETWEEN DATE_SUB(l.snapshot_date, INTERVAL previous_start_offset DAY)
@@ -732,7 +731,7 @@ HAVING benchmark_impressions >= min_ctr_benchmark_impressions;
 
 -- 3.2 Main CTR issues table
 
-CREATE OR REPLACE TABLE `your_output_project.your_output_dataset.seo_ctr_issues`
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.seo_ctr_issues`
 PARTITION BY snapshot_date
 CLUSTER BY position_bucket
 AS
@@ -740,7 +739,7 @@ AS
 WITH latest_date AS (
   SELECT
     MAX(data_date) AS snapshot_date
-  FROM `your_source_project.searchconsole.searchdata_url_impression`
+  FROM `YOUR_PROJECT.searchconsole.searchdata_url_impression`
 ),
 
 current_period AS (
@@ -754,7 +753,7 @@ current_period AS (
     SAFE_DIVIDE(SUM(clicks), SUM(impressions)) AS actual_ctr,
     SAFE_DIVIDE(SUM(sum_position), SUM(impressions)) + 1 AS avg_position
 
-  FROM `your_source_project.searchconsole.searchdata_url_impression`
+  FROM `YOUR_PROJECT.searchconsole.searchdata_url_impression`
   CROSS JOIN latest_date l
 
   WHERE data_date BETWEEN DATE_SUB(l.snapshot_date, INTERVAL current_start_offset DAY)
@@ -809,7 +808,7 @@ with_benchmark AS (
     ) AS estimated_lost_clicks
 
   FROM bucketed_current c
-  LEFT JOIN `your_output_project.your_output_dataset.seo_ctr_position_benchmarks` b
+  LEFT JOIN `YOUR_PROJECT.leakonic.seo_ctr_position_benchmarks` b
     ON c.snapshot_date = b.snapshot_date
    AND c.position_bucket = b.position_bucket
 )
@@ -824,7 +823,7 @@ WHERE expected_ctr IS NOT NULL
 
 -- 3.3 CTR bucket comparison table
 
-CREATE OR REPLACE TABLE `your_output_project.your_output_dataset.seo_ctr_bucket_comparison`
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.seo_ctr_bucket_comparison`
 PARTITION BY snapshot_date
 CLUSTER BY position_bucket
 AS
@@ -845,7 +844,7 @@ SELECT
 
   SUM(estimated_lost_clicks) AS estimated_lost_clicks
 
-FROM `your_output_project.your_output_dataset.seo_ctr_issues`
+FROM `YOUR_PROJECT.leakonic.seo_ctr_issues`
 GROUP BY
   snapshot_date,
   position_bucket;
@@ -853,7 +852,7 @@ GROUP BY
 
 -- 3.4 CTR scorecards
 
-CREATE OR REPLACE TABLE `your_output_project.your_output_dataset.seo_ctr_scorecards`
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.seo_ctr_scorecards`
 PARTITION BY snapshot_date
 AS
 
@@ -868,7 +867,7 @@ SELECT
 
   COUNTIF(impressions >= 1000 AND actual_ctr < expected_ctr) AS high_impression_low_ctr_cases
 
-FROM `your_output_project.your_output_dataset.seo_ctr_issues`
+FROM `YOUR_PROJECT.leakonic.seo_ctr_issues`
 GROUP BY snapshot_date;
 
 
@@ -878,14 +877,14 @@ GROUP BY snapshot_date;
 
 -- 4.1 Daily clicks trend vs previous period
 
-CREATE OR REPLACE TABLE `your_output_project.your_output_dataset.seo_traffic_daily_comparison`
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.seo_traffic_daily_comparison`
 PARTITION BY snapshot_date
 AS
 
 WITH latest_date AS (
   SELECT
     MAX(data_date) AS snapshot_date
-  FROM `your_source_project.searchconsole.searchdata_site_impression`
+  FROM `YOUR_PROJECT.searchconsole.searchdata_site_impression`
 ),
 
 daily AS (
@@ -898,7 +897,7 @@ daily AS (
     SAFE_DIVIDE(SUM(clicks), SUM(impressions)) AS ctr,
     SAFE_DIVIDE(SUM(sum_top_position), SUM(impressions)) + 1 AS avg_position
 
-  FROM `your_source_project.searchconsole.searchdata_site_impression`
+  FROM `YOUR_PROJECT.searchconsole.searchdata_site_impression`
   CROSS JOIN latest_date l
 
   WHERE data_date BETWEEN DATE_SUB(l.snapshot_date, INTERVAL previous_start_offset DAY)
@@ -967,7 +966,7 @@ LEFT JOIN previous_period p
 
 -- 4.2 URL traffic issues
 
-CREATE OR REPLACE TABLE `your_output_project.your_output_dataset.seo_traffic_url_issues`
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.seo_traffic_url_issues`
 PARTITION BY snapshot_date
 CLUSTER BY lost_clicks
 AS
@@ -975,7 +974,7 @@ AS
 WITH latest_date AS (
   SELECT
     MAX(data_date) AS snapshot_date
-  FROM `your_source_project.searchconsole.searchdata_url_impression`
+  FROM `YOUR_PROJECT.searchconsole.searchdata_url_impression`
 ),
 
 periodized AS (
@@ -997,7 +996,7 @@ periodized AS (
     SUM(impressions) AS impressions,
     SUM(sum_position) AS sum_position
 
-  FROM `your_source_project.searchconsole.searchdata_url_impression`
+  FROM `YOUR_PROJECT.searchconsole.searchdata_url_impression`
   CROSS JOIN latest_date l
 
   WHERE data_date BETWEEN DATE_SUB(l.snapshot_date, INTERVAL previous_start_offset DAY)
@@ -1068,7 +1067,7 @@ WHERE GREATEST(0, previous_clicks - current_clicks) >= min_traffic_lost_clicks
 
 -- 4.3 Query traffic issues
 
-CREATE OR REPLACE TABLE `your_output_project.your_output_dataset.seo_traffic_query_issues`
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.seo_traffic_query_issues`
 PARTITION BY snapshot_date
 CLUSTER BY lost_clicks
 AS
@@ -1076,7 +1075,7 @@ AS
 WITH latest_date AS (
   SELECT
     MAX(data_date) AS snapshot_date
-  FROM `your_source_project.searchconsole.searchdata_site_impression`
+  FROM `YOUR_PROJECT.searchconsole.searchdata_site_impression`
 ),
 
 periodized AS (
@@ -1098,7 +1097,7 @@ periodized AS (
     SUM(impressions) AS impressions,
     SUM(sum_top_position) AS sum_top_position
 
-  FROM `your_source_project.searchconsole.searchdata_site_impression`
+  FROM `YOUR_PROJECT.searchconsole.searchdata_site_impression`
   CROSS JOIN latest_date l
 
   WHERE data_date BETWEEN DATE_SUB(l.snapshot_date, INTERVAL previous_start_offset DAY)
@@ -1169,7 +1168,7 @@ WHERE GREATEST(0, previous_clicks - current_clicks) >= min_traffic_lost_clicks
 
 -- 4.4 Main traffic leak table: URL + query
 
-CREATE OR REPLACE TABLE `your_output_project.your_output_dataset.seo_traffic_page_query_issues`
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.seo_traffic_page_query_issues`
 PARTITION BY snapshot_date
 CLUSTER BY lost_clicks
 AS
@@ -1177,7 +1176,7 @@ AS
 WITH latest_date AS (
   SELECT
     MAX(data_date) AS snapshot_date
-  FROM `your_source_project.searchconsole.searchdata_url_impression`
+  FROM `YOUR_PROJECT.searchconsole.searchdata_url_impression`
 ),
 
 periodized AS (
@@ -1200,7 +1199,7 @@ periodized AS (
     SUM(impressions) AS impressions,
     SUM(sum_position) AS sum_position
 
-  FROM `your_source_project.searchconsole.searchdata_url_impression`
+  FROM `YOUR_PROJECT.searchconsole.searchdata_url_impression`
   CROSS JOIN latest_date l
 
   WHERE data_date BETWEEN DATE_SUB(l.snapshot_date, INTERVAL previous_start_offset DAY)
@@ -1276,7 +1275,7 @@ WHERE GREATEST(0, previous_clicks - current_clicks) >= min_traffic_lost_clicks
 
 -- 4.5 Traffic issue scorecards
 
-CREATE OR REPLACE TABLE `your_output_project.your_output_dataset.seo_traffic_scorecards`
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.seo_traffic_scorecards`
 PARTITION BY snapshot_date
 AS
 
@@ -1287,7 +1286,7 @@ WITH site_totals AS (
     SUM(current_clicks) AS current_clicks,
     SUM(previous_clicks) AS previous_clicks
 
-  FROM `your_output_project.your_output_dataset.seo_traffic_daily_comparison`
+  FROM `YOUR_PROJECT.leakonic.seo_traffic_daily_comparison`
   GROUP BY snapshot_date
 ),
 
@@ -1295,7 +1294,7 @@ url_counts AS (
   SELECT
     snapshot_date,
     COUNT(DISTINCT url) AS urls_losing_clicks
-  FROM `your_output_project.your_output_dataset.seo_traffic_url_issues`
+  FROM `YOUR_PROJECT.leakonic.seo_traffic_url_issues`
   GROUP BY snapshot_date
 ),
 
@@ -1303,7 +1302,7 @@ query_counts AS (
   SELECT
     snapshot_date,
     COUNT(DISTINCT query) AS queries_losing_clicks
-  FROM `your_output_project.your_output_dataset.seo_traffic_query_issues`
+  FROM `YOUR_PROJECT.leakonic.seo_traffic_query_issues`
   GROUP BY snapshot_date
 )
 
@@ -1334,7 +1333,7 @@ LEFT JOIN query_counts q
 
 -- 5.1 Keyword comparison table
 
-CREATE OR REPLACE TABLE `your_output_project.your_output_dataset.seo_position_keyword_comparison`
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.seo_position_keyword_comparison`
 PARTITION BY snapshot_date
 CLUSTER BY current_position_bucket
 AS
@@ -1342,7 +1341,7 @@ AS
 WITH latest_date AS (
   SELECT
     MAX(data_date) AS snapshot_date
-  FROM `your_source_project.searchconsole.searchdata_site_impression`
+  FROM `YOUR_PROJECT.searchconsole.searchdata_site_impression`
 ),
 
 periodized AS (
@@ -1364,7 +1363,7 @@ periodized AS (
     SUM(impressions) AS impressions,
     SUM(sum_top_position) AS sum_top_position
 
-  FROM `your_source_project.searchconsole.searchdata_site_impression`
+  FROM `YOUR_PROJECT.searchconsole.searchdata_site_impression`
   CROSS JOIN latest_date l
 
   WHERE data_date BETWEEN DATE_SUB(l.snapshot_date, INTERVAL previous_start_offset DAY)
@@ -1459,7 +1458,7 @@ WHERE current_impressions >= min_position_impressions
 
 -- 5.2 Keyword position distribution
 
-CREATE OR REPLACE TABLE `your_output_project.your_output_dataset.seo_position_bucket_distribution`
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.seo_position_bucket_distribution`
 PARTITION BY snapshot_date
 CLUSTER BY period, position_bucket
 AS
@@ -1482,7 +1481,7 @@ SELECT
   SUM(previous_clicks) AS clicks,
   SUM(previous_impressions) AS impressions
 
-FROM `your_output_project.your_output_dataset.seo_position_keyword_comparison`
+FROM `YOUR_PROJECT.leakonic.seo_position_keyword_comparison`
 GROUP BY
   snapshot_date,
   period,
@@ -1509,7 +1508,7 @@ SELECT
   SUM(current_clicks) AS clicks,
   SUM(current_impressions) AS impressions
 
-FROM `your_output_project.your_output_dataset.seo_position_keyword_comparison`
+FROM `YOUR_PROJECT.leakonic.seo_position_keyword_comparison`
 GROUP BY
   snapshot_date,
   period,
@@ -1519,7 +1518,7 @@ GROUP BY
 
 -- 5.3 Keywords dropped from important positions
 
-CREATE OR REPLACE TABLE `your_output_project.your_output_dataset.seo_position_drop_types`
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.seo_position_drop_types`
 PARTITION BY snapshot_date
 CLUSTER BY drop_type
 AS
@@ -1531,7 +1530,7 @@ SELECT
   COUNT(DISTINCT query) AS keyword_count,
   SUM(lost_clicks) AS lost_clicks
 
-FROM `your_output_project.your_output_dataset.seo_position_keyword_comparison`
+FROM `YOUR_PROJECT.leakonic.seo_position_keyword_comparison`
 WHERE previous_position_for_bucket < 4
   AND current_position_for_bucket >= 4
 GROUP BY snapshot_date
@@ -1545,7 +1544,7 @@ SELECT
   COUNT(DISTINCT query) AS keyword_count,
   SUM(lost_clicks) AS lost_clicks
 
-FROM `your_output_project.your_output_dataset.seo_position_keyword_comparison`
+FROM `YOUR_PROJECT.leakonic.seo_position_keyword_comparison`
 WHERE previous_position_for_bucket < 11
   AND current_position_for_bucket >= 11
 GROUP BY snapshot_date
@@ -1559,7 +1558,7 @@ SELECT
   COUNT(DISTINCT query) AS keyword_count,
   SUM(lost_clicks) AS lost_clicks
 
-FROM `your_output_project.your_output_dataset.seo_position_keyword_comparison`
+FROM `YOUR_PROJECT.leakonic.seo_position_keyword_comparison`
 WHERE previous_position_for_bucket < 21
   AND current_position_for_bucket >= 21
 GROUP BY snapshot_date
@@ -1573,7 +1572,7 @@ SELECT
   COUNT(DISTINCT query) AS keyword_count,
   SUM(lost_clicks) AS lost_clicks
 
-FROM `your_output_project.your_output_dataset.seo_position_keyword_comparison`
+FROM `YOUR_PROJECT.leakonic.seo_position_keyword_comparison`
 WHERE previous_position_for_bucket < 51
   AND current_position_for_bucket >= 51
 GROUP BY snapshot_date;
@@ -1581,7 +1580,7 @@ GROUP BY snapshot_date;
 
 -- 5.4 Main ranking drop table: query + URL
 
-CREATE OR REPLACE TABLE `your_output_project.your_output_dataset.seo_position_issues`
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.seo_position_issues`
 PARTITION BY snapshot_date
 CLUSTER BY drop_type
 AS
@@ -1589,7 +1588,7 @@ AS
 WITH latest_date AS (
   SELECT
     MAX(data_date) AS snapshot_date
-  FROM `your_source_project.searchconsole.searchdata_url_impression`
+  FROM `YOUR_PROJECT.searchconsole.searchdata_url_impression`
 ),
 
 periodized AS (
@@ -1612,7 +1611,7 @@ periodized AS (
     SUM(impressions) AS impressions,
     SUM(sum_position) AS sum_position
 
-  FROM `your_source_project.searchconsole.searchdata_url_impression`
+  FROM `YOUR_PROJECT.searchconsole.searchdata_url_impression`
   CROSS JOIN latest_date l
 
   WHERE data_date BETWEEN DATE_SUB(l.snapshot_date, INTERVAL previous_start_offset DAY)
@@ -1725,7 +1724,7 @@ WHERE current_position_for_drop - previous_position_for_drop >= min_position_dro
 
 -- 5.5 Position issue scorecards
 
-CREATE OR REPLACE TABLE `your_output_project.your_output_dataset.seo_position_scorecards`
+CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.seo_position_scorecards`
 PARTITION BY snapshot_date
 AS
 
@@ -1737,7 +1736,7 @@ WITH issue_summary AS (
     COUNT(DISTINCT url) AS urls_affected_by_ranking_drops,
     SUM(lost_clicks) AS lost_clicks_from_ranking_drops
 
-  FROM `your_output_project.your_output_dataset.seo_position_issues`
+  FROM `YOUR_PROJECT.leakonic.seo_position_issues`
   GROUP BY snapshot_date
 ),
 
@@ -1746,7 +1745,7 @@ top10_drops AS (
     snapshot_date,
     keyword_count AS keywords_dropped_out_of_top_10
 
-  FROM `your_output_project.your_output_dataset.seo_position_drop_types`
+  FROM `YOUR_PROJECT.leakonic.seo_position_drop_types`
   WHERE drop_type = 'Dropped from Top 10'
 )
 
