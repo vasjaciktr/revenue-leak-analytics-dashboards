@@ -9,6 +9,7 @@
 -- Before running:
 -- 1. Replace `YOUR_PROJECT.searchconsole` with your GSC BigQuery export project.dataset.
 -- 2. Make sure the output dataset already exists.
+CREATE SCHEMA IF NOT EXISTS `YOUR_PROJECT.leakonic`;
 
 DECLARE period_days INT64 DEFAULT 28;
 DECLARE current_start_offset INT64 DEFAULT 27;
