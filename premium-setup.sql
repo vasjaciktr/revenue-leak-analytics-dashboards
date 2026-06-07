@@ -2337,7 +2337,8 @@ issue_counts AS (
   SELECT
     snapshot_date,
     COUNT(DISTINCT url) AS urls_with_issues,
-    COUNT(DISTINCT query) AS queries_with_issues
+    COUNT(DISTINCT query) AS queries_with_issues,
+    SUM(lost_clicks) AS issue_level_lost_clicks
   FROM `YOUR_PROJECT.leakonic.seo_overview_top_leaks`
   GROUP BY snapshot_date
 )
