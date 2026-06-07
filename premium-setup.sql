@@ -2353,7 +2353,7 @@ SELECT
 
   p.current_clicks - p.previous_clicks AS click_change,
 
-  GREATEST(0, p.previous_clicks - p.current_clicks) AS estimated_lost_clicks,
+  IFNULL(i.issue_level_lost_clicks, 0) AS estimated_lost_clicks,
 
   p.current_impressions AS organic_impressions,
   p.previous_impressions AS previous_organic_impressions,
