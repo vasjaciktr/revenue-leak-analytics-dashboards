@@ -2,31 +2,80 @@
 -- LEAKONIC PREMIUM PACKAGE
 -- GOOGLE ADS BUDGET LEAKS SECTION
 -- ============================================================
-
+--
 -- Output tables created:
--- 1. YOUR_PROJECT.leakonic.google_ads_campaign_performance
--- 2. YOUR_PROJECT.leakonic.google_ads_campaign_leak_signals
--- 3. YOUR_PROJECT.leakonic.google_ads_overview_scorecards
+-- 1. europafoodxb-450709.leakonic.google_ads_campaign_performance
+-- 2. europafoodxb-450709.leakonic.google_ads_campaign_leak_signals
+-- 3. europafoodxb-450709.leakonic.google_ads_overview_scorecards
 --
 -- Replace:
--- YOUR_PROJECT
--- YOUR_GOOGLE_ADS_DATASET
+-- europafoodxb-450709
+-- google_ads
 --
--- Required Google Ads transfer source tables:
--- YOUR_PROJECT.YOUR_GOOGLE_ADS_DATASET.ads_CampaignBasicStats_*
--- YOUR_PROJECT.YOUR_GOOGLE_ADS_DATASET.ads_Campaign_*
+-- This version works with Google Ads transfer views like:
+-- ads_CampaignBasicStats_5457744553
+-- ads_Campaign_5457744553
+--
+-- It avoids wildcard querying because Google Ads transfer creates views,
+-- and BigQuery cannot query views through a wildcard prefix.
+
+-- ============================================================
+-- 0. FIND GOOGLE ADS SOURCE VIEWS AND MATERIALIZE TEMP TABLES
+-- ============================================================
+
+DECLARE campaign_basic_stats_sql STRING;
+DECLARE campaign_table_sql STRING;
+
+SET campaign_basic_stats_sql = (
+  SELECT
+    STRING_AGG(
+      FORMAT(
+        'SELECT * FROM `europafoodxb-450709.google_ads.%s`',
+        table_name
+      ),
+      ' UNION ALL '
+    )
+  FROM `europafoodxb-450709.google_ads.INFORMATION_SCHEMA.TABLES`
+  WHERE REGEXP_CONTAINS(table_name, '^ads_CampaignBasicStats_[0-9]+$')
+);
+
+SET campaign_table_sql = (
+  SELECT
+    STRING_AGG(
+      FORMAT(
+        'SELECT * FROM `europafoodxb-450709.google_ads.%s`',
+        table_name
+      ),
+      ' UNION ALL '
+    )
+  FROM `europafoodxb-450709.google_ads.INFORMATION_SCHEMA.TABLES`
+  WHERE REGEXP_CONTAINS(table_name, '^ads_Campaign_[0-9]+$')
+);
+
+ASSERT campaign_basic_stats_sql IS NOT NULL
+  AS 'No ads_CampaignBasicStats views found in google_ads';
+
+ASSERT campaign_table_sql IS NOT NULL
+  AS 'No ads_Campaign views found in google_ads';
+
+EXECUTE IMMEDIATE
+  'CREATE TEMP TABLE google_ads_campaign_basic_stats AS ' || campaign_basic_stats_sql;
+
+EXECUTE IMMEDIATE
+  'CREATE TEMP TABLE google_ads_campaigns AS ' || campaign_table_sql;
+
 
 -- ============================================================
 -- 1. GOOGLE ADS CAMPAIGN PERFORMANCE
 -- ============================================================
 
-CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.google_ads_campaign_performance` AS
+CREATE OR REPLACE TABLE `europafoodxb-450709.leakonic.google_ads_campaign_performance` AS
 
 WITH date_params AS (
   SELECT
     MAX(CAST(segments_date AS DATE)) AS end_date,
     DATE_SUB(MAX(CAST(segments_date AS DATE)), INTERVAL 13 DAY) AS start_date
-  FROM `YOUR_PROJECT.YOUR_GOOGLE_ADS_DATASET.ads_CampaignBasicStats_*`
+  FROM google_ads_campaign_basic_stats
 ),
 
 campaign_names AS (
@@ -36,7 +85,7 @@ campaign_names AS (
     campaign_name,
     campaign_status,
     campaign_advertising_channel_type AS campaign_type
-  FROM `YOUR_PROJECT.YOUR_GOOGLE_ADS_DATASET.ads_Campaign_*`
+  FROM google_ads_campaigns
   QUALIFY ROW_NUMBER() OVER (
     PARTITION BY customer_id, campaign_id
     ORDER BY _DATA_DATE DESC
@@ -70,7 +119,7 @@ daily_campaign_stats AS (
     CAST(SUM(s.metrics_conversions) AS FLOAT64) AS conversions,
     CAST(SUM(s.metrics_conversions_value) AS FLOAT64) AS conversion_value
 
-  FROM `YOUR_PROJECT.YOUR_GOOGLE_ADS_DATASET.ads_CampaignBasicStats_*` s
+  FROM google_ads_campaign_basic_stats s
   CROSS JOIN date_params p
   WHERE CAST(s.segments_date AS DATE) BETWEEN p.start_date AND p.end_date
   GROUP BY
@@ -119,7 +168,7 @@ LEFT JOIN campaign_names n
 -- 2. GOOGLE ADS CAMPAIGN LEAK SIGNALS
 -- ============================================================
 
-CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.google_ads_campaign_leak_signals` AS
+CREATE OR REPLACE TABLE `europafoodxb-450709.leakonic.google_ads_campaign_leak_signals` AS
 
 WITH settings AS (
   SELECT
@@ -152,7 +201,7 @@ period_summary AS (
     SAFE_DIVIDE(SUM(cost), SUM(conversions)) AS cost_per_conversion,
     SAFE_DIVIDE(SUM(conversion_value), SUM(cost)) AS roas
 
-  FROM `YOUR_PROJECT.leakonic.google_ads_campaign_performance`
+  FROM `europafoodxb-450709.leakonic.google_ads_campaign_performance`
   GROUP BY
     customer_id,
     campaign_id,
@@ -331,7 +380,7 @@ ORDER BY
 -- 3. GOOGLE ADS OVERVIEW SCORECARDS
 -- ============================================================
 
-CREATE OR REPLACE TABLE `YOUR_PROJECT.leakonic.google_ads_overview_scorecards` AS
+CREATE OR REPLACE TABLE `europafoodxb-450709.leakonic.google_ads_overview_scorecards` AS
 
 WITH period_summary AS (
   SELECT
@@ -352,7 +401,7 @@ WITH period_summary AS (
     SAFE_DIVIDE(SUM(cost), SUM(conversions)) AS cost_per_conversion,
     SAFE_DIVIDE(SUM(conversion_value), SUM(cost)) AS roas
 
-  FROM `YOUR_PROJECT.leakonic.google_ads_campaign_performance`
+  FROM `europafoodxb-450709.leakonic.google_ads_campaign_performance`
   GROUP BY period
 ),
 
@@ -374,7 +423,7 @@ waste_summary AS (
     SUM(affected_spend) AS affected_spend,
     COUNT(*) AS number_of_leak_signals,
     COUNT(DISTINCT campaign_id) AS leaking_campaigns
-  FROM `YOUR_PROJECT.leakonic.google_ads_campaign_leak_signals`
+  FROM `europafoodxb-450709.leakonic.google_ads_campaign_leak_signals`
 )
 
 SELECT
