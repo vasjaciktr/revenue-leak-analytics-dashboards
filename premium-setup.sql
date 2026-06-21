@@ -9,6 +9,31 @@ DECLARE start_date STRING DEFAULT FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE(),
 DECLARE end_date STRING DEFAULT FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY));
 
 
+DECLARE period_days INT64 DEFAULT 28;
+DECLARE current_start_offset INT64 DEFAULT 27;
+DECLARE previous_start_offset INT64 DEFAULT 55;
+
+DECLARE min_overview_impressions INT64 DEFAULT 50;
+
+DECLARE min_cannibalization_query_impressions INT64 DEFAULT 100;
+DECLARE min_cannibalization_url_impressions INT64 DEFAULT 10;
+DECLARE max_urls_per_keyword INT64 DEFAULT 10;
+
+DECLARE min_ctr_current_impressions INT64 DEFAULT 100;
+DECLARE min_ctr_benchmark_impressions INT64 DEFAULT 500;
+DECLARE min_ctr_gap FLOAT64 DEFAULT 0.005;
+
+DECLARE min_traffic_impressions INT64 DEFAULT 50;
+DECLARE min_traffic_lost_clicks INT64 DEFAULT 1;
+
+DECLARE min_position_impressions INT64 DEFAULT 50;
+DECLARE min_position_drop FLOAT64 DEFAULT 1.0;
+DECLARE min_position_lost_clicks INT64 DEFAULT 0;
+
+DECLARE campaign_basic_stats_sql STRING;
+DECLARE campaign_table_sql STRING;
+
+
 -- 0. Create dataset (schema)
 
 CREATE SCHEMA IF NOT EXISTS `YOUR_PROJECT.leakonic`;
@@ -2029,28 +2054,6 @@ ORDER BY
 -- 1. Replace `YOUR_PROJECT.searchconsole` with your GSC BigQuery export project.dataset.
 -- 2. Make sure the output dataset already exists.
 
-DECLARE period_days INT64 DEFAULT 28;
-DECLARE current_start_offset INT64 DEFAULT 27;
-DECLARE previous_start_offset INT64 DEFAULT 55;
-
-DECLARE min_overview_impressions INT64 DEFAULT 50;
-
-DECLARE min_cannibalization_query_impressions INT64 DEFAULT 100;
-DECLARE min_cannibalization_url_impressions INT64 DEFAULT 10;
-DECLARE max_urls_per_keyword INT64 DEFAULT 10;
-
-DECLARE min_ctr_current_impressions INT64 DEFAULT 100;
-DECLARE min_ctr_benchmark_impressions INT64 DEFAULT 500;
-DECLARE min_ctr_gap FLOAT64 DEFAULT 0.005;
-
-DECLARE min_traffic_impressions INT64 DEFAULT 50;
-DECLARE min_traffic_lost_clicks INT64 DEFAULT 1;
-
-DECLARE min_position_impressions INT64 DEFAULT 50;
-DECLARE min_position_drop FLOAT64 DEFAULT 1.0;
-DECLARE min_position_lost_clicks INT64 DEFAULT 0;
-
-
 CREATE SCHEMA IF NOT EXISTS `YOUR_PROJECT.leakonic`;
 
 -- ============================================================
@@ -3809,9 +3812,6 @@ LEFT JOIN top10_drops t
 -- ============================================================
 -- 0. FIND GOOGLE ADS SOURCE VIEWS AND MATERIALIZE TEMP TABLES
 -- ============================================================
-
-DECLARE campaign_basic_stats_sql STRING;
-DECLARE campaign_table_sql STRING;
 
 SET campaign_basic_stats_sql = (
   SELECT
