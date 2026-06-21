@@ -2028,7 +2028,6 @@ ORDER BY
 -- Before running:
 -- 1. Replace `YOUR_PROJECT.searchconsole` with your GSC BigQuery export project.dataset.
 -- 2. Make sure the output dataset already exists.
-CREATE SCHEMA IF NOT EXISTS `YOUR_PROJECT.leakonic`;
 
 DECLARE period_days INT64 DEFAULT 28;
 DECLARE current_start_offset INT64 DEFAULT 27;
@@ -2051,6 +2050,8 @@ DECLARE min_position_impressions INT64 DEFAULT 50;
 DECLARE min_position_drop FLOAT64 DEFAULT 1.0;
 DECLARE min_position_lost_clicks INT64 DEFAULT 0;
 
+
+CREATE SCHEMA IF NOT EXISTS `YOUR_PROJECT.leakonic`;
 
 -- ============================================================
 -- PART 1. SEO OVERVIEW
